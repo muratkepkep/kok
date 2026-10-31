@@ -45,6 +45,26 @@ jobs:
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO
 
+      # Eksik secret'lar adıyla raporlanır, değerleri hiçbir zaman yazdırılmaz.
+      - name: Secret'ları kontrol et
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          IOS_P12_BASE64: ${{ secrets.IOS_P12_BASE64 }}
+          IOS_P12_PASSWORD: ${{ secrets.IOS_P12_PASSWORD }}
+          IOS_PROFILE_BASE64: ${{ secrets.IOS_PROFILE_BASE64 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          EKSIK=0
+          for AD in IOS_P12_BASE64 IOS_P12_PASSWORD IOS_PROFILE_BASE64 ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8; do
+            if [ -z "${!AD}" ]; then
+              echo "::error::$AD secret'i eksik"
+              EKSIK=1
+            fi
+          done
+          exit "$EKSIK"
+
       # Bulut makineleri her çalışmada sıfırlandığı için otomatik imzalama Apple
       # hesabında atık sertifika biriktirir, bu yüzden sabit sertifika kuruluyor.
       - name: Sertifika ve profili kur
@@ -62,14 +82,31 @@ jobs:
           security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
           security set-keychain-settings -lut 21600 "$KEYCHAIN"
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
-          security import "$RUNNER_TEMP/imza.p12" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security import "$RUNNER_TEMP/imza.p12" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN" || {
+            echo "::error::Sertifika acilamadi. IOS_P12_BASE64 ve IOS_P12_PASSWORD ayni tamamla calismasindan olmali."
+            exit 1
+          }
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
           security list-keychain -d user -s "$KEYCHAIN"
 
           # Yanlış sertifika türü derlemenin sonunda değil, burada görünsün.
-          security find-identity -v -p codesigning "$KEYCHAIN" | grep 'Apple Distribution'
+          security find-identity -v -p codesigning "$KEYCHAIN" | grep 'Apple Distribution' || {
+            echo "::error::Apple Distribution sertifikasi bulunamadi. Certificates sayfasinda dogru turu sec."
+            exit 1
+          }
 
-          security cms -D -i "$RUNNER_TEMP/kok.mobileprovision" > "$RUNNER_TEMP/profil.plist"
+          security cms -D -i "$RUNNER_TEMP/kok.mobileprovision" > "$RUNNER_TEMP/profil.plist" || {
+            echo "::error::Provisioning profili okunamadi. IOS_PROFILE_BASE64 secret'ini kontrol et."
+            exit 1
+          }
+          APP_ID=$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:application-identifier' "$RUNNER_TEMP/profil.plist")
+          case "$APP_ID" in
+            *.com.murat.koktakip) ;;
+            *)
+              echo "::error::Profil $APP_ID icin olusturulmus, com.murat.koktakip bekleniyor."
+              exit 1
+              ;;
+          esac
           UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/profil.plist")
           echo "KOK_PROFILE_NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/profil.plist")" >> "$GITHUB_ENV"
           echo "KOK_TEAM_ID=$(/usr/libexec/PlistBuddy -c 'Print :TeamIdentifier:0' "$RUNNER_TEMP/profil.plist")" >> "$GITHUB_ENV"
@@ -85,13 +122,19 @@ jobs:
       - name: Arşivle
         if: github.event_name == 'workflow_dispatch'
         run: |
-          xcodebuild archive \
+          set -o pipefail
+          LOG="$RUNNER_TEMP/arsiv.log"
+          if ! xcodebuild archive \
             -project ios/App/App.xcodeproj \
             -scheme App \
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Kok.xcarchive" \
-            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER"
+            CURRENT_PROJECT_VERSION="$GITHUB_RUN_NUMBER" 2>&1 | tee "$LOG"; then
+            # Günlükler giriş ister, nedeni çalışma özetinde görünsün.
+            grep -E 'error:|Error Domain' "$LOG" | sort -u | head -8 | sed 's/^/::error::/'
+            exit 1
+          fi
 
       - name: TestFlight'a yükle
         if: github.event_name == 'workflow_dispatch'
@@ -121,10 +164,15 @@ jobs:
           </plist>
           EOF
 
-          xcodebuild -exportArchive \
+          set -o pipefail
+          LOG="$RUNNER_TEMP/yukleme.log"
+          if ! xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/Kok.xcarchive" \
             -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
             -exportPath "$RUNNER_TEMP/export" \
             -authenticationKeyPath "$KEY_PATH" \
             -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" 2>&1 | tee "$LOG"; then
+            grep -E 'error:|Error Domain' "$LOG" | sort -u | head -8 | sed 's/^/::error::/'
+            exit 1
+          fi

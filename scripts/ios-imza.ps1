@@ -33,10 +33,14 @@ function Get-OpenSsl {
 }
 
 function Get-TekDosya([string]$Desen, [string]$Aciklama) {
-  $dosya = Get-ChildItem -Path $Klasor -Filter $Desen -File |
+  $indirilenler = Join-Path $env:USERPROFILE 'Downloads'
+  $dosya = @($Klasor, $indirilenler) |
+    Where-Object { Test-Path $_ } |
+    ForEach-Object { Get-ChildItem -Path $_ -Filter $Desen -File } |
     Sort-Object LastWriteTime -Descending |
     Select-Object -First 1
-  if (-not $dosya) { throw "$Aciklama bulunamadı ($Desen). Dosyayı $Klasor klasörüne koy." }
+  if (-not $dosya) { throw "$Aciklama bulunamadı ($Desen). Dosyayı İndirilenler veya $Klasor klasörüne koy." }
+  Write-Host "$Aciklama kullanılıyor: $($dosya.FullName)"
   return $dosya
 }
 
