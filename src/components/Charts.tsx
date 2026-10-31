@@ -104,17 +104,37 @@ export function GrowthChart({ surgeryDate, checkIns, today }: { surgeryDate: ISO
                 </text>
               </g>
             ))}
-            {[0, 3, 6, 9, 12, 15, 18].map((month) => (
-              <text key={month} x={x(month)} y={height - 8} textAnchor="middle" className="chart-axis">
-                {month === 0 ? 'Ameliyat' : `${month}. ay`}
+            {(width < 460 ? [6, 12, 18] : [3, 6, 9, 12, 15, 18]).map((month) => (
+              <text
+                key={month}
+                x={x(month)}
+                y={height - 8}
+                textAnchor={month === TRACKED_MONTHS ? 'end' : 'middle'}
+                className="chart-axis"
+              >
+                {month}. ay
               </text>
             ))}
+            <defs>
+              <linearGradient id="kok-line" x1="0" y1="1" x2="1" y2="0">
+                <stop offset="0" stopColor="#ff3d81" />
+                <stop offset="0.55" stopColor="#ff8a3d" />
+                <stop offset="1" stopColor="#ffd23f" />
+              </linearGradient>
+            </defs>
             <polygon points={band} className="chart-band" />
             <polyline points={midLine} className="chart-expected" />
             <line x1={nowX} x2={nowX} y1={pad.top} y2={height - pad.bottom} className="chart-now" />
-            {points.length > 1 && <polyline points={line} className="chart-line" />}
-            {points.map((point) => (
-              <circle key={point.entry.id} cx={point.px} cy={point.py} r={4} className="chart-dot" />
+            {points.length > 1 && <polyline points={line} className="chart-line" stroke="url(#kok-line)" pathLength={1} />}
+            {points.map((point, index) => (
+              <circle
+                key={point.entry.id}
+                cx={point.px}
+                cy={point.py}
+                r={3}
+                className="chart-dot"
+                style={{ animationDelay: `${index * 45}ms` }}
+              />
             ))}
             {last && (
               <text x={last.px + 9} y={last.py + 4} className="chart-label">
@@ -189,6 +209,12 @@ export function WashGapChart({ rows, currentWeek }: { rows: WashRow[]; currentWe
             onPointerDown={onPointer}
             onPointerLeave={() => setTip(null)}
           >
+            <defs>
+              <linearGradient id="kok-water" x1="0" y1="1" x2="0" y2="0">
+                <stop offset="0" stopColor="#38b6ff" />
+                <stop offset="1" stopColor="#2df5b0" />
+              </linearGradient>
+            </defs>
             {niceTicks(maxGap).map((tick) => (
               <g key={tick}>
                 <line x1={pad.left} x2={width - pad.right} y1={y(tick)} y2={y(tick)} className="chart-grid" />
@@ -197,7 +223,7 @@ export function WashGapChart({ rows, currentWeek }: { rows: WashRow[]; currentWe
                 </text>
               </g>
             ))}
-            {data.map((item) => {
+            {data.map((item, index) => {
               const left = centerOf(item.week) - barW / 2
               const top = y(item.averageGap)
               const bottom = y(0)
@@ -206,7 +232,9 @@ export function WashGapChart({ rows, currentWeek }: { rows: WashRow[]; currentWe
                 <path
                   key={item.week}
                   d={`M${left} ${bottom}V${top + radius}Q${left} ${top} ${left + radius} ${top}H${left + barW - radius}Q${left + barW} ${top} ${left + barW} ${top + radius}V${bottom}Z`}
-                  className="chart-bar"
+                  className="grow-up"
+                  fill="url(#kok-water)"
+                  style={{ animationDelay: `${index * 24}ms` }}
                 />
               )
             })}
@@ -293,7 +321,7 @@ export function AdherenceCalendar({
                 <span
                   key={date}
                   className={ratio === null ? 'calendar-cell calendar-empty' : `calendar-cell level-${levelOf(ratio)}`}
-                  style={{ gridRow: row, gridColumn: column }}
+                  style={{ gridRow: row, gridColumn: column, animationDelay: `${column * 28 + row * 12}ms` }}
                   data-today={date === today || undefined}
                   onPointerEnter={show}
                   onPointerDown={show}
@@ -374,6 +402,12 @@ export function MonthlyCharts({ rows }: { rows: MonthRow[] }) {
       <div ref={ref} className="chart-frame">
         {width > 0 && (
           <svg width={width} height={height} role="img" aria-label="Aylık uyum ve net ilerleme">
+            <defs>
+              <linearGradient id="kok-bar" x1="0" y1="1" x2="0" y2="0">
+                <stop offset="0" stopColor="#ff3d81" />
+                <stop offset="1" stopColor="#ffd23f" />
+              </linearGradient>
+            </defs>
             <text x={0} y={14} className="chart-title">
               Uyum, çizgi {fmtRatio(GOOD_ADHERENCE)} düzenli eşiği
             </text>
@@ -415,13 +449,17 @@ export function MonthlyCharts({ rows }: { rows: MonthRow[] }) {
                   {row.adherence.ratio !== null && (
                     <path
                       d={columnPath(left, topY(0), topY(row.adherence.ratio))}
-                      className={row.complete ? 'chart-bar' : 'chart-bar chart-bar-open'}
+                      className={row.complete ? 'grow-up' : 'grow-up chart-bar-open'}
+                      fill="url(#kok-bar)"
+                      style={{ animationDelay: `${index * 70}ms` }}
                     />
                   )}
                   {row.net !== null && (
                     <path
                       d={columnPath(left, zero, netY(row.net))}
-                      className={row.net >= 0 ? 'chart-gain' : 'chart-loss'}
+                      className={row.net >= 0 ? 'grow-up' : 'grow-down'}
+                      fill={row.net >= 0 ? '#2df5b0' : '#ff8a3d'}
+                      style={{ animationDelay: `${300 + index * 70}ms` }}
                     />
                   )}
                   <text x={cx} y={height - 8} textAnchor="middle" className="chart-axis">

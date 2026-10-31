@@ -1,7 +1,9 @@
-import { ChartNoAxesCombined, ClipboardList, Droplets, Pill, Sprout, Stethoscope } from 'lucide-react'
+import { ChartNoAxesCombined, Droplets, Pill, Route, Sprout } from 'lucide-react'
+import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useState, type ComponentType } from 'react'
 import { ScreenBoundary } from './components/ScreenBoundary'
 import { EMPTY_STATE } from './domain/types'
+import { tapLight } from './haptics'
 import { clearPhotos } from './photos'
 import { Analysis } from './screens/Analysis'
 import { Care } from './screens/Care'
@@ -14,16 +16,20 @@ import { actions, useAppState, useSaveFailed } from './store'
 
 const TABS = [
   { id: 'bugun', label: 'Bugün', icon: Sprout, screen: Today },
-  { id: 'surec', label: 'Süreç', icon: ClipboardList, screen: Process },
+  { id: 'surec', label: 'Süreç', icon: Route, screen: Process },
   { id: 'ilaclar', label: 'İlaçlar', icon: Pill, screen: Meds },
   { id: 'bakim', label: 'Bakım', icon: Droplets, screen: Care },
   { id: 'analiz', label: 'Analiz', icon: ChartNoAxesCombined, screen: Analysis },
-  { id: 'operasyon', label: 'Operasyon', icon: Stethoscope, screen: SurgeryPage },
 ] satisfies { id: string; label: string; icon: unknown; screen: ComponentType }[]
+
+const SCREENS: Record<string, ComponentType> = {
+  ...Object.fromEntries(TABS.map((tab) => [tab.id, tab.screen])),
+  operasyon: SurgeryPage,
+}
 
 const currentTab = () => {
   const id = window.location.hash.slice(1)
-  return TABS.some((tab) => tab.id === id) ? id : 'bugun'
+  return id in SCREENS ? id : 'bugun'
 }
 
 const useHashTab = () => {
@@ -39,40 +45,108 @@ const useHashTab = () => {
   return tab
 }
 
+function Aurora() {
+  return (
+    <div className="aurora" aria-hidden>
+      <span />
+      <span />
+      <span />
+    </div>
+  )
+}
+
+function TabBar({ tab }: { tab: string }) {
+  return (
+    <nav className="tabbar" aria-label="Ana menü">
+      {TABS.map(({ id, label, icon: Icon }) => {
+        const active = tab === id
+        return (
+          <a
+            key={id}
+            href={`#${id}`}
+            className="tab"
+            aria-label={label}
+            aria-current={active ? 'page' : undefined}
+            onClick={tapLight}
+          >
+            {active && (
+              <motion.span
+                layoutId="tab-pill"
+                className="tab-pill"
+                transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+              />
+            )}
+            <motion.span
+              className="tab-icon"
+              animate={{ scale: active ? 1.08 : 1, y: active ? 0 : 1 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 18 }}
+            >
+              <Icon size={22} strokeWidth={active ? 2.5 : 2} aria-hidden />
+            </motion.span>
+            <AnimatePresence initial={false}>
+              {active && (
+                <motion.span
+                  className="tab-label"
+                  initial={{ opacity: 0, width: 0 }}
+                  animate={{ opacity: 1, width: 'auto' }}
+                  exit={{ opacity: 0, width: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {label}
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </a>
+        )
+      })}
+    </nav>
+  )
+}
+
 export function App() {
   const state = useAppState()
   const saveFailed = useSaveFailed()
   const tab = useHashTab()
 
-  if (state.surgery === null) return <Onboarding />
+  if (state.surgery === null) {
+    return (
+      <>
+        <Aurora />
+        <Onboarding />
+      </>
+    )
+  }
 
-  const Screen = (TABS.find((item) => item.id === tab) ?? TABS[0]).screen
+  const Screen = SCREENS[tab]
 
   return (
-    <div className="shell">
-      <nav className="nav" aria-label="Ana menü">
-        <a className="brand" href="#bugun">
-          Kök
-        </a>
-        {TABS.map(({ id, label, icon: Icon }) => (
-          <a key={id} href={`#${id}`} className="nav-item" aria-current={tab === id ? 'page' : undefined}>
-            <Icon size={21} aria-hidden />
-            <span>{label}</span>
-          </a>
-        ))}
-      </nav>
+    <>
+      <Aurora />
       <main className="main">
         {saveFailed && (
-          <p className="banner" role="alert">
-            Son değişiklik kaydedilemedi. Tarayıcı depolaması dolu veya kapalı olabilir.
+          <p className="notice" role="alert">
+            Son değişiklik kaydedilemedi. Cihazda yeterli alan olduğundan emin ol.
           </p>
         )}
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={tab}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+          >
+            <ScreenBoundary>
+              <Screen />
+            </ScreenBoundary>
+          </motion.div>
+        </AnimatePresence>
         {state.demo && (
-          <p className="banner">
+          <div className="notice notice-demo">
             <span>Örnek verileri görüyorsun.</span>
             <button
               type="button"
-              className="button-quiet"
+              className="link"
               onClick={() => {
                 void clearPhotos()
                 actions.replaceAll(EMPTY_STATE)
@@ -81,12 +155,10 @@ export function App() {
             >
               Kendi takibimi başlat
             </button>
-          </p>
+          </div>
         )}
-        <ScreenBoundary key={tab}>
-          <Screen />
-        </ScreenBoundary>
       </main>
-    </div>
+      <TabBar tab={tab} />
+    </>
   )
 }

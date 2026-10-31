@@ -1,6 +1,7 @@
-import { Plus } from 'lucide-react'
+import { Pause, Pencil, Play, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { AdherenceCalendar } from '../components/Charts'
+import { CountUp, Press, Reveal, Ring, Segmented } from '../components/fx'
 import { MedForm } from '../components/MedForm'
 import {
   activePlan,
@@ -21,15 +22,24 @@ import { fmtDecimal, fmtRatio } from '../domain/format'
 import type { AppState, ISODate, Medication } from '../domain/types'
 import { actions, useAppState, useToday } from '../store'
 
-function MedRow({
+const RING_COLORS = [
+  ['#ff3d81', '#ffd23f'],
+  ['#b45cff', '#38b6ff'],
+  ['#2df5b0', '#ffd23f'],
+  ['#38b6ff', '#2df5b0'],
+]
+
+function MedCard({
   med,
   state,
   today,
+  index,
   onEdit,
 }: {
   med: Medication
   state: AppState
   today: ISODate
+  index: number
   onEdit: () => void
 }) {
   const plan = activePlan(med)
@@ -41,65 +51,70 @@ function MedRow({
   const plannedPerWeek = (plan.timesPerDay * 7) / plan.everyNDays
   const slots = slotTally(med, state.doses, today)
   const slotNames = SLOT_NAMES[slots.length]
+  const [from, to] = RING_COLORS[index % RING_COLORS.length]
 
   return (
-    <article className="med">
-      <header>
-        <h3>{med.name}</h3>
-        <p>
-          {[med.kind === 'ilac' ? 'İlaç' : 'Takviye', med.dose, stopped ? 'Ara verildi' : scheduleLabel(plan)]
-            .filter(Boolean)
-            .join(', ')}
-        </p>
-      </header>
-      <dl className="med-stats">
+    <article className="card med" data-stopped={stopped || undefined}>
+      <div className="med-head">
+        <Ring value={month.ratio ?? 0} size={96} thickness={11} from={from} to={to}>
+          <strong className="ring-value ring-small">
+            <CountUp value={month.ratio ?? 0} format={fmtRatio} />
+          </strong>
+          <span>30 gün</span>
+        </Ring>
+        <div className="med-title">
+          <h2>{med.name}</h2>
+          <p>{[med.kind === 'ilac' ? 'İlaç' : 'Takviye', med.dose].filter(Boolean).join(', ')}</p>
+          <span className="glass-chip">{stopped ? 'Ara verildi' : scheduleLabel(plan)}</span>
+        </div>
+      </div>
+
+      <dl className="stat-row">
         <div>
-          <dt>Son 7 gün</dt>
+          <dt>7 gün</dt>
           <dd>{fmtRatio(week.ratio)}</dd>
         </div>
         <div>
-          <dt>Son 30 gün</dt>
-          <dd>{fmtRatio(month.ratio)}</dd>
-        </div>
-        <div>
-          <dt>Başlangıçtan beri</dt>
+          <dt>Tümü</dt>
           <dd>{fmtRatio(all.ratio)}</dd>
         </div>
         <div>
-          <dt>Haftalık kullanım</dt>
+          <dt>Haftalık doz</dt>
           <dd>
             {rate === null ? '–' : fmtDecimal(rate)}
-            <small> / {fmtDecimal(plannedPerWeek)} doz</small>
+            <small> / {fmtDecimal(plannedPerWeek)}</small>
           </dd>
         </div>
       </dl>
-      <p className="section-note">
+
+      <p className="muted">
         {slots.length > 1 &&
-          `${slots.map((slot, index) => `${slotNames[index]} ${fmtRatio(slot.ratio)}`).join(', ')}. `}
+          `${slots.map((slot, slotIndex) => `${slotNames[slotIndex]} ${fmtRatio(slot.ratio)}`).join(', ')}. `}
         Başlangıç: {fmtFull(medStart(med))}.
       </p>
-      <div className="med-actions">
-        <button type="button" className="button-quiet" onClick={onEdit}>
-          Düzenle
-        </button>
+
+      <div className="action-row">
+        <Press className="round-button" aria-label={`${med.name} düzenle`} onClick={onEdit}>
+          <Pencil size={18} aria-hidden />
+        </Press>
         {stopped ? (
-          <button type="button" className="button-quiet" onClick={() => actions.resumeMed(med.id, today)}>
-            Yeniden başlat
-          </button>
+          <Press className="mini-button" onClick={() => actions.resumeMed(med.id, today)}>
+            <Play size={15} aria-hidden /> Yeniden başlat
+          </Press>
         ) : (
-          <button type="button" className="button-quiet" onClick={() => actions.stopMed(med.id, today)}>
-            Ara ver
-          </button>
+          <Press className="mini-button" onClick={() => actions.stopMed(med.id, today)}>
+            <Pause size={15} aria-hidden /> Ara ver
+          </Press>
         )}
-        <button
-          type="button"
-          className="button-quiet"
+        <Press
+          className="round-button round-danger"
+          aria-label={`${med.name} sil`}
           onClick={() => {
             if (window.confirm(`${med.name} tüm doz kayıtlarıyla silinsin mi?`)) actions.deleteMed(med.id)
           }}
         >
-          Sil
-        </button>
+          <Trash2 size={18} aria-hidden />
+        </Press>
       </div>
     </article>
   )
@@ -123,66 +138,69 @@ export function Meds() {
   const totalMissed = misses.reduce((sum, row) => sum + row.missed, 0)
 
   return (
-    <>
+    <div className="page stack">
       <header className="page-head">
         <h1>İlaçlar</h1>
-        <div className="page-actions">
-          <button type="button" className="button" onClick={() => setForm({ med: null })}>
-            <Plus size={18} aria-hidden /> İlaç ekle
-          </button>
-        </div>
+        <Press className="round-button round-accent" aria-label="İlaç ekle" onClick={() => setForm({ med: null })}>
+          <Plus size={22} aria-hidden />
+        </Press>
       </header>
 
-      {state.meds.length === 0 ? (
-        <p className="empty">Minoksidil, finasterid veya kullandığın takviyeleri ekle, doz takibi Bugün sayfasında başlasın.</p>
-      ) : (
-        <div className="meds">
-          {state.meds.map((med) => (
-            <MedRow key={med.id} med={med} state={state} today={today} onEdit={() => setForm({ med })} />
-          ))}
-        </div>
+      {state.meds.length === 0 && (
+        <Press className="cta" onClick={() => setForm({ med: null })}>
+          Minoksidil, finasterid veya takviye ekle
+        </Press>
       )}
 
+      {state.meds.map((med, index) => (
+        <Reveal key={med.id} i={index}>
+          <MedCard med={med} state={state} today={today} index={index} onEdit={() => setForm({ med })} />
+        </Reveal>
+      ))}
+
       {state.meds.length > 0 && (
-        <section className="section">
-          <div className="section-head">
+        <Reveal i={state.meds.length}>
+          <section className="card">
             <h2>Doz takvimi</h2>
-            <div className="segmented" role="group" aria-label="Takvimde gösterilen ilaç">
-              <button type="button" aria-pressed={filter === 'hepsi'} onClick={() => setFilter('hepsi')}>
-                Hepsi
-              </button>
-              {state.meds.map((med) => (
-                <button key={med.id} type="button" aria-pressed={filter === med.id} onClick={() => setFilter(med.id)}>
-                  {med.name}
-                </button>
-              ))}
+            <div className="scroll-x">
+              <Segmented
+                name="takvim"
+                label="Takvimde gösterilen ilaç"
+                value={filter}
+                onChange={setFilter}
+                options={[
+                  { value: 'hepsi', label: 'Hepsi' },
+                  ...state.meds.map((med) => ({ value: med.id, label: med.name })),
+                ]}
+              />
             </div>
-          </div>
-          <dl className="figures">
-            <div>
-              <dt>Son 30 gün uyum</dt>
-              <dd>{fmtRatio(windowTally(scope, state.doses, 30, today).ratio)}</dd>
-            </div>
-            <div>
-              <dt>Eksiksiz gün serisi</dt>
-              <dd>{streak(scope, state.doses, today)}</dd>
-            </div>
-            {worst && totalMissed >= 3 && worst.missed > 0 && (
+            <dl className="stat-row">
               <div>
-                <dt>En çok aksayan gün</dt>
-                <dd>{WEEKDAYS[worst.weekday]}</dd>
+                <dt>30 gün uyum</dt>
+                <dd>{fmtRatio(windowTally(scope, state.doses, 30, today).ratio)}</dd>
               </div>
-            )}
-          </dl>
-          <AdherenceCalendar
-            ratioOf={(date) => dayRatio(scope, state.doses, date)}
-            today={today}
-            firstDate={firstDate}
-          />
-        </section>
+              <div>
+                <dt>Seri</dt>
+                <dd>{streak(scope, state.doses, today)} gün</dd>
+              </div>
+              {worst && totalMissed >= 3 && worst.missed > 0 && (
+                <div>
+                  <dt>En çok aksayan</dt>
+                  <dd>{WEEKDAYS[worst.weekday]}</dd>
+                </div>
+              )}
+            </dl>
+            <AdherenceCalendar
+              key={filter}
+              ratioOf={(date) => dayRatio(scope, state.doses, date)}
+              today={today}
+              firstDate={firstDate}
+            />
+          </section>
+        </Reveal>
       )}
 
       {form && <MedForm med={form.med} onClose={() => setForm(null)} />}
-    </>
+    </div>
   )
 }

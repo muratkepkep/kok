@@ -1,27 +1,54 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <rect width="1024" height="1024" fill="#008573"/>
-  <rect y="716" width="1024" height="308" fill="#EFD3C1"/>
-  <g fill="none" stroke-linecap="round">
-    <g stroke="#2A211C" stroke-width="16">
-      <path d="M232 716V800"/>
-      <path d="M372 716V800"/>
-      <path d="M512 716V800"/>
-      <path d="M652 716V800"/>
-      <path d="M792 716V800"/>
+  <defs>
+    <radialGradient id="zemin" cx="72%" cy="24%" r="95%">
+      <stop offset="0" stop-color="#3a1763"/>
+      <stop offset=".55" stop-color="#150d3a"/>
+      <stop offset="1" stop-color="#070614"/>
+    </radialGradient>
+    <linearGradient id="tel" gradientUnits="userSpaceOnUse" x1="0" y1="780" x2="0" y2="190">
+      <stop offset="0" stop-color="#ff3d81"/>
+      <stop offset=".55" stop-color="#ff8a3d"/>
+      <stop offset="1" stop-color="#ffd23f"/>
+    </linearGradient>
+    <linearGradient id="hat" x1="0" x2="1">
+      <stop offset="0" stop-color="#ff3d81"/>
+      <stop offset=".5" stop-color="#ffd23f"/>
+      <stop offset="1" stop-color="#2df5b0"/>
+    </linearGradient>
+    <filter id="isik" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="20"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#zemin)"/>
+  <g fill="none" stroke="url(#tel)" stroke-linecap="round">
+    <g stroke-width="60" opacity=".5" filter="url(#isik)">
+      <path d="M212 780C212 742 218 716 232 690"/>
+      <path d="M362 780C362 700 376 628 410 566"/>
+      <path d="M512 780C512 660 536 546 590 448"/>
+      <path d="M662 780C662 620 696 470 772 342"/>
+      <path d="M812 780C812 590 856 390 942 226"/>
     </g>
-    <g stroke="#FFFFFF" stroke-width="44">
-      <path d="M232 716C232 690 236 668 246 650"/>
-      <path d="M372 716C372 650 384 590 412 540"/>
-      <path d="M512 716C512 620 530 520 576 440"/>
-      <path d="M652 716C652 590 680 450 744 340"/>
-      <path d="M792 716C792 560 826 390 900 250"/>
+    <g stroke-width="40">
+      <path d="M212 780C212 742 218 716 232 690"/>
+      <path d="M362 780C362 700 376 628 410 566"/>
+      <path d="M512 780C512 660 536 546 590 448"/>
+      <path d="M662 780C662 620 696 470 772 342"/>
+      <path d="M812 780C812 590 856 390 942 226"/>
     </g>
   </g>
-  <g fill="#2A211C">
-    <circle cx="232" cy="822" r="30"/>
-    <circle cx="372" cy="822" r="30"/>
-    <circle cx="512" cy="822" r="30"/>
-    <circle cx="652" cy="822" r="30"/>
-    <circle cx="792" cy="822" r="30"/>
+  <g fill="#fff">
+    <circle cx="232" cy="690" r="20"/>
+    <circle cx="410" cy="566" r="20"/>
+    <circle cx="590" cy="448" r="20"/>
+    <circle cx="772" cy="342" r="20"/>
+    <circle cx="942" cy="226" r="20"/>
+  </g>
+  <rect x="120" y="776" width="784" height="14" rx="7" fill="url(#hat)"/>
+  <g fill="#ffb3cf">
+    <circle cx="212" cy="842" r="20"/>
+    <circle cx="362" cy="842" r="20"/>
+    <circle cx="512" cy="842" r="20"/>
+    <circle cx="662" cy="842" r="20"/>
+    <circle cx="812" cy="842" r="20"/>
   </g>
 </svg>

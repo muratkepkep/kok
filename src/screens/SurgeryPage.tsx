@@ -1,3 +1,4 @@
+import { ArrowLeft } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { SurgeryFields } from '../components/SurgeryFields'
 import { buildBackup, parseBackup } from '../domain/backup'
@@ -34,7 +35,7 @@ function Backup() {
   }
 
   return (
-    <section className="section">
+    <section className="card">
       <h2>Yedek</h2>
       <p className="section-note">
         Kayıtların yalnızca bu cihazda durur ve uygulama silinirse kaybolur. Arada bir yedek al, dosyayı Dosyalar
@@ -83,13 +84,16 @@ export function SurgeryPage() {
   const [saved, setSaved] = useState(false)
 
   return (
-    <>
+    <div className="page stack">
       <header className="page-head">
         <h1>Operasyon</h1>
+        <a href="#bugun" className="round-button" aria-label="Bugün sayfasına dön">
+          <ArrowLeft size={20} aria-hidden />
+        </a>
       </header>
       <div className="split">
         <form
-          className="form"
+          className="card form-card"
           onSubmit={(event) => {
             event.preventDefault()
             actions.saveSurgery(surgery)
@@ -112,6 +116,6 @@ export function SurgeryPage() {
         </form>
         <Backup />
       </div>
-    </>
+    </div>
   )
 }
