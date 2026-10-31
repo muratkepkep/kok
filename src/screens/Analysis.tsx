@@ -92,7 +92,7 @@ export function Analysis() {
             <small>Son 30 gün uyum</small>
           </div>
           <div>
-            <Ring value={(latest?.fullness ?? 0) / 100} size={124} thickness={13} from="#2df5b0" to="#38b6ff">
+            <Ring value={(latest?.fullness ?? 0) / 100} size={124} thickness={13} from="#b6ff3c" to="#2ef2ff">
               <strong className="ring-value ring-small">
                 <CountUp value={latest?.fullness ?? 0} format={(value) => fmtScore(value)} />
               </strong>

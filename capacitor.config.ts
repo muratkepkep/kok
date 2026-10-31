@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Kök',
   webDir: 'dist',
   // Web içeriği yüklenirken beyaz parlama olmasın.
-  backgroundColor: '#070614',
+  backgroundColor: '#03060f',
   ios: {
     // Durum çubuğu ve alt çentik boşluğunu CSS safe-area değerleri yönetir.
     contentInset: 'never',

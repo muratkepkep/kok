@@ -1,5 +1,6 @@
 import { isISODate } from './dates'
-import { EMPTY_STATE, type AppState } from './types'
+import { migrate } from './migrate'
+import type { AppState } from './types'
 
 export interface Backup {
   app: 'kok'
@@ -30,7 +31,7 @@ export const parseBackup = (text: string): Backup => {
     throw new Error('Bu dosya bir Kök yedeği değil.')
   }
   const state = raw.state
-  if (state.version !== 1) throw new Error('Bu yedek, uygulamanın bu sürümüyle açılamıyor.')
+  if (state.version !== 1 && state.version !== 2) throw new Error('Bu yedek, uygulamanın bu sürümüyle açılamıyor.')
   if (
     !isRecord(state.surgery) ||
     !isISODate(state.surgery.date) ||
@@ -44,7 +45,7 @@ export const parseBackup = (text: string): Backup => {
   return {
     app: 'kok',
     exportedAt: String(raw.exportedAt ?? ''),
-    state: { ...EMPTY_STATE, ...(state as unknown as AppState) },
+    state: migrate(state),
     photos: isRecord(raw.photos) ? (raw.photos as Record<string, string>) : {},
   }
 }

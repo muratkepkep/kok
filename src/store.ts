@@ -2,11 +2,23 @@ import { Preferences } from '@capacitor/preferences'
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { activePlan, withPlan } from './domain/adherence'
 import { localToday } from './domain/dates'
-import { EMPTY_STATE, type AppState, type CheckIn, type Medication, type ScabLog, type Surgery } from './domain/types'
+import { migrate } from './domain/migrate'
+import {
+  EMPTY_STATE,
+  type Appointment,
+  type AppState,
+  type CheckIn,
+  type ISODate,
+  type Medication,
+  type ReminderSettings,
+  type ScabLog,
+  type Surgery,
+  type SymptomLog,
+} from './domain/types'
 
 const STORAGE_KEY = 'kok:durum'
 
-let state = EMPTY_STATE
+let state: AppState = EMPTY_STATE
 let saveFailed = false
 let pendingSave = Promise.resolve()
 const listeners = new Set<() => void>()
@@ -19,7 +31,7 @@ const notify = () => listeners.forEach((listener) => listener())
 export const loadState = async () => {
   try {
     const { value } = await Preferences.get({ key: STORAGE_KEY })
-    if (value) state = { ...EMPTY_STATE, ...(JSON.parse(value) as AppState) }
+    if (value) state = migrate(JSON.parse(value) as Record<string, unknown>)
   } catch {
     // Depolama okunamazsa uygulama boş durumla açılır.
   }
@@ -44,7 +56,7 @@ const commit = (next: AppState) => {
     )
 }
 
-const subscribe = (listener: () => void) => {
+export const subscribe = (listener: () => void) => {
   listeners.add(listener)
   return () => listeners.delete(listener)
 }
@@ -70,6 +82,9 @@ export const useToday = () => {
 
 const newId = () => crypto.randomUUID()
 
+const updateMed = (id: string, change: (med: Medication) => Medication) =>
+  commit({ ...state, meds: state.meds.map((med) => (med.id === id ? change(med) : med)) })
+
 export const actions = {
   replaceAll(next: AppState) {
     commit(next)
@@ -91,22 +106,17 @@ export const actions = {
     this.saveMed({ ...fields, id: newId() })
   },
 
-  stopMed(id: string, today: string) {
-    commit({
-      ...state,
-      meds: state.meds.map((med) =>
-        med.id === id ? { ...med, schedule: withPlan(med.schedule, { ...activePlan(med), paused: true }, today) } : med,
-      ),
-    })
+  stopMed(id: string, today: ISODate) {
+    updateMed(id, (med) => ({ ...med, schedule: withPlan(med.schedule, { ...activePlan(med), paused: true }, today) }))
   },
 
-  resumeMed(id: string, today: string) {
-    commit({
-      ...state,
-      meds: state.meds.map((med) =>
-        med.id === id ? { ...med, schedule: withPlan(med.schedule, { ...activePlan(med), paused: false }, today) } : med,
-      ),
-    })
+  resumeMed(id: string, today: ISODate) {
+    updateMed(id, (med) => ({ ...med, schedule: withPlan(med.schedule, { ...activePlan(med), paused: false }, today) }))
+  },
+
+  /** Doz değişikliği bugünden başlar, eski doz geçmişte kalır. */
+  setDoseAmount(id: string, amount: number, today: ISODate) {
+    updateMed(id, (med) => ({ ...med, schedule: withPlan(med.schedule, { ...activePlan(med), amount }, today) }))
   },
 
   /** İlacı doz kayıtlarıyla birlikte siler. */
@@ -120,7 +130,7 @@ export const actions = {
     commit({ ...state, meds: state.meds.filter((med) => med.id !== id), doses })
   },
 
-  toggleDose(date: string, medId: string, slot: number) {
+  toggleDose(date: ISODate, medId: string, slot: number) {
     const current = state.doses[date]?.[medId] ?? []
     const next = current.includes(slot)
       ? current.filter((item) => item !== slot)
@@ -131,13 +141,24 @@ export const actions = {
     })
   },
 
+  /** Bildirimdeki "Aldım" düğmesi; zaten alınmış dozu değiştirmez. */
+  markDoses(items: { date: ISODate; medId: string; slot: number }[]) {
+    const doses = { ...state.doses }
+    for (const { date, medId, slot } of items) {
+      const current = doses[date]?.[medId] ?? []
+      if (current.includes(slot)) continue
+      doses[date] = { ...doses[date], [medId]: [...current, slot].sort((a, b) => a - b) }
+    }
+    commit({ ...state, doses })
+  },
+
   /** Aynı güne ikinci yıkama eklenmez; yıkama aralığı gün üzerinden ölçülür. */
-  addWash(date: string, note = '') {
+  addWash(date: ISODate, note = '') {
     if (state.washes.some((wash) => wash.date === date)) return
     commit({ ...state, washes: [...state.washes, { date, note }] })
   },
 
-  removeWash(date: string) {
+  removeWash(date: ISODate) {
     commit({ ...state, washes: state.washes.filter((wash) => wash.date !== date) })
   },
 
@@ -158,5 +179,37 @@ export const actions = {
 
   deleteCheckIn(id: string) {
     commit({ ...state, checkIns: state.checkIns.filter((item) => item.id !== id) })
+  },
+
+  saveSymptoms(date: ISODate, log: SymptomLog) {
+    commit({ ...state, symptoms: { ...state.symptoms, [date]: log } })
+  },
+
+  saveAppointment(entry: Omit<Appointment, 'id'> & { id?: string }) {
+    const saved: Appointment = { ...entry, id: entry.id ?? newId() }
+    const exists = state.appointments.some((item) => item.id === saved.id)
+    commit({
+      ...state,
+      appointments: exists
+        ? state.appointments.map((item) => (item.id === saved.id ? saved : item))
+        : [...state.appointments, saved],
+    })
+  },
+
+  deleteAppointment(id: string) {
+    commit({ ...state, appointments: state.appointments.filter((item) => item.id !== id) })
+  },
+
+  setRuleDays(id: string, days: number | null) {
+    const { [id]: _old, ...rest } = state.ruleDays
+    commit({ ...state, ruleDays: days === null ? rest : { ...rest, [id]: days } })
+  },
+
+  saveReminders(change: Partial<ReminderSettings>) {
+    commit({ ...state, reminders: { ...state.reminders, ...change } })
+  },
+
+  saveClinicNotes(clinicNotes: string) {
+    commit({ ...state, clinicNotes })
   },
 }

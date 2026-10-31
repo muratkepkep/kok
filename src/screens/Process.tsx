@@ -188,7 +188,12 @@ function Gallery({ state }: { state: AppState }) {
   if (photos.length === 0) return null
   return (
     <section>
-      <h2 className="section-title">Fotoğraflar</h2>
+      <div className="section-row">
+        <h2 className="section-title">Fotoğraflar</h2>
+        <a href="#foto" className="link">
+          Önce ve sonrayı kıyasla
+        </a>
+      </div>
       <div className="gallery">
         {photos.map((photo) => (
           <Photo key={photo.id} id={photo.id} caption={photo.caption} />

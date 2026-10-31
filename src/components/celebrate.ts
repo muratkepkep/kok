@@ -1,4 +1,4 @@
-const COLORS = ['#ff3d81', '#ff8a3d', '#ffd23f', '#2df5b0', '#38b6ff', '#b45cff']
+const COLORS = ['#2ef2ff', '#7a5cff', '#ff2e9f', '#b6ff3c', '#ffb020', '#ffffff']
 const PIECES = 150
 const DURATION = 2200
 

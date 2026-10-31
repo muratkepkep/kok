@@ -117,9 +117,9 @@ export function GrowthChart({ surgeryDate, checkIns, today }: { surgeryDate: ISO
             ))}
             <defs>
               <linearGradient id="kok-line" x1="0" y1="1" x2="1" y2="0">
-                <stop offset="0" stopColor="#ff3d81" />
-                <stop offset="0.55" stopColor="#ff8a3d" />
-                <stop offset="1" stopColor="#ffd23f" />
+                <stop offset="0" stopColor="#ff2e9f" />
+                <stop offset="0.55" stopColor="#7a5cff" />
+                <stop offset="1" stopColor="#2ef2ff" />
               </linearGradient>
             </defs>
             <polygon points={band} className="chart-band" />
@@ -211,8 +211,8 @@ export function WashGapChart({ rows, currentWeek }: { rows: WashRow[]; currentWe
           >
             <defs>
               <linearGradient id="kok-water" x1="0" y1="1" x2="0" y2="0">
-                <stop offset="0" stopColor="#38b6ff" />
-                <stop offset="1" stopColor="#2df5b0" />
+                <stop offset="0" stopColor="#7a5cff" />
+                <stop offset="1" stopColor="#2ef2ff" />
               </linearGradient>
             </defs>
             {niceTicks(maxGap).map((tick) => (
@@ -363,6 +363,7 @@ export function MonthlyCharts({ rows }: { rows: MonthRow[] }) {
   const innerW = Math.max(0, width - pad.left - pad.right)
   const band = rows.length ? innerW / rows.length : 0
   const barW = Math.min(24, Math.max(6, band - 8))
+  const labelEvery = band >= 42 ? 1 : band >= 21 ? 2 : 3
 
   const topH = 142
   const topStart = 28
@@ -404,8 +405,8 @@ export function MonthlyCharts({ rows }: { rows: MonthRow[] }) {
           <svg width={width} height={height} role="img" aria-label="Aylık uyum ve net ilerleme">
             <defs>
               <linearGradient id="kok-bar" x1="0" y1="1" x2="0" y2="0">
-                <stop offset="0" stopColor="#ff3d81" />
-                <stop offset="1" stopColor="#ffd23f" />
+                <stop offset="0" stopColor="#7a5cff" />
+                <stop offset="1" stopColor="#2ef2ff" />
               </linearGradient>
             </defs>
             <text x={0} y={14} className="chart-title">
@@ -458,13 +459,15 @@ export function MonthlyCharts({ rows }: { rows: MonthRow[] }) {
                     <path
                       d={columnPath(left, zero, netY(row.net))}
                       className={row.net >= 0 ? 'grow-up' : 'grow-down'}
-                      fill={row.net >= 0 ? '#2df5b0' : '#ff8a3d'}
+                      fill={row.net >= 0 ? '#b6ff3c' : '#ffb020'}
                       style={{ animationDelay: `${300 + index * 70}ms` }}
                     />
                   )}
-                  <text x={cx} y={height - 8} textAnchor="middle" className="chart-axis">
-                    {row.n}. ay
-                  </text>
+                  {row.n % labelEvery === 0 && (
+                    <text x={cx} y={height - 8} textAnchor="middle" className="chart-axis">
+                      {row.n}. ay
+                    </text>
+                  )}
                   <rect
                     x={cx - band / 2}
                     y={0}

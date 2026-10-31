@@ -11,9 +11,9 @@ export class ScreenBoundary extends Component<{ children: ReactNode }, { failed:
   render() {
     if (!this.state.failed) return this.props.children
     return (
-      <section className="section" role="alert">
+      <section className="page stack" role="alert">
         <h1>Bu sayfa açılamadı</h1>
-        <p className="lead">
+        <p className="muted">
           Kayıtların bu cihazda duruyor. Başka bir sayfaya geçebilir veya uygulamayı yeniden yükleyebilirsin.
         </p>
         <button type="button" className="button" onClick={() => window.location.reload()}>

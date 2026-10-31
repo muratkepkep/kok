@@ -1,27 +1,54 @@
-import { Camera, Check, ChevronLeft, ChevronRight, Droplets, Flame, Settings, Sparkles } from 'lucide-react'
+import {
+  Activity,
+  BellRing,
+  CalendarClock,
+  Camera,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Droplets,
+  Flame,
+  LayoutGrid,
+  Package,
+  Pencil,
+  Phone,
+  Plus,
+  ShieldAlert,
+  Sparkles,
+  TimerReset,
+} from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { celebrate } from '../components/celebrate'
 import { CheckInForm } from '../components/CheckInForm'
 import { CountUp, Press, Reveal, Ring } from '../components/fx'
-import { burstHair, HairField } from '../components/HairField'
+import { MedForm } from '../components/MedForm'
+import { scanPulse } from '../components/scanBus'
 import {
+  amountLabel,
   dayRatio,
   inUseOn,
   medStart,
   plannedSlots,
   SLOT_NAMES,
+  stockStatus,
   streak,
   takenSlots,
   windowTally,
 } from '../domain/adherence'
 import { scabStats, washStats } from '../domain/care'
-import { addDays, diffDays, fmtDay, fmtFull, fmtWeekday, minDate } from '../domain/dates'
+import { addDays, diffDays, fmtDay, fmtDayShort, fmtFull, fmtWeekday, localToday, minDate } from '../domain/dates'
+import { sortedCheckIns } from '../domain/efficacy'
 import { fmtDecimal, fmtInt, fmtRatio, fmtScore } from '../domain/format'
-import { dayNumber, monthNumber, stageAt, weekNumber, weekPeriod } from '../domain/timeline'
+import { planReminders } from '../domain/reminders'
+import { ruleStatuses } from '../domain/rules'
+import { needsAttention } from '../domain/symptoms'
+import { dayNumber, expectedAt, monthNumber, stageAt, weekNumber, weekPeriod } from '../domain/timeline'
 import type { AppState, ISODate, Medication } from '../domain/types'
 import { tapFirm, tapSuccess } from '../haptics'
 import { actions, getState, useAppState, useToday } from '../store'
+
+const HeadScan = lazy(() => import('../components/HeadScan').then((module) => ({ default: module.HeadScan })))
 
 const dayLabel = (date: ISODate, today: ISODate) => {
   if (date === today) return 'Bugün'
@@ -34,50 +61,158 @@ function Hero({ state, today }: { state: AppState; today: ISODate }) {
   const day = dayNumber(surgery.date, today)
   const before = day < 0
   const stage = stageAt(Math.max(day, 0))
+  const latest = sortedCheckIns(state.checkIns).at(-1)
+  const expected = expectedAt(Math.max(day, 0)).mid
+  const measured = latest?.fullness ?? expected
+  const growth = Math.max(0.04, measured / 100)
+  const pending = state.meds.reduce((sum, med) => {
+    const slots = plannedSlots(med, today)
+    return sum + slots - takenSlots(state.doses, med.id, today, slots)
+  }, 0)
 
   return (
     <header className="hero">
-      <HairField currentWeek={weekNumber(surgery.date, today)} />
+      <Suspense fallback={null}>
+        <HeadScan growth={growth} areas={surgery.areas} />
+      </Suspense>
+      <span className="hud-corner hud-corner-a" aria-hidden />
+      <span className="hud-corner hud-corner-b" aria-hidden />
       <div className="hero-top">
-        <span className="wordmark">Kök</span>
-        <a href="#operasyon" className="round-button" aria-label="Operasyon bilgileri">
-          <Settings size={20} aria-hidden />
+        <span className="wordmark">KÖK</span>
+        {state.meds.length > 0 && (
+          <button
+            type="button"
+            className="live-chip"
+            data-pending={pending > 0 || undefined}
+            onClick={() => document.getElementById('dozlar')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+          >
+            <i aria-hidden /> {pending > 0 ? `${pending} doz bekliyor` : 'Dozlar tamam'}
+          </button>
+        )}
+        <a href="#merkez" className="round-button" aria-label="Kontrol merkezi">
+          <LayoutGrid size={19} aria-hidden />
         </a>
       </div>
       <div className="hero-copy">
+        <small className="hud-label">{before ? 'Ameliyata kalan' : 'Ameliyat sonrası'}</small>
         <p className="hero-day">
           <CountUp value={Math.abs(day)} className="hero-number" />
-          <span className="hero-unit">{before ? 'gün kaldı' : '. gün'}</span>
+          <span className="hero-unit">gün</span>
         </p>
-        <motion.div
-          initial={{ opacity: 0, x: -16 }}
+        <motion.h1
+          initial={{ opacity: 0, x: -14 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ type: 'spring', stiffness: 160, damping: 18, delay: 0.35 }}
         >
-          <h1>{before ? 'Ameliyata hazırlık' : stage.title}</h1>
-          <div className="chip-row">
-            {before ? (
-              <span className="glass-chip">{fmtFull(surgery.date)}</span>
-            ) : (
-              <>
-                <span className="glass-chip">{weekNumber(surgery.date, today)}. hafta</span>
-                <span className="glass-chip">{monthNumber(surgery.date, today)}. ay</span>
-              </>
-            )}
-          </div>
-        </motion.div>
+          {before ? 'Ameliyata hazırlık' : stage.title}
+        </motion.h1>
       </div>
+      <p className="hero-note">
+        <i aria-hidden />
+        Parlak teller ekim bölgen
+      </p>
+      <dl className="hud-stats">
+        <div>
+          <dt>Hafta</dt>
+          <dd>{before ? '–' : weekNumber(surgery.date, today)}</dd>
+        </div>
+        <div>
+          <dt>Ay</dt>
+          <dd>{before ? '–' : monthNumber(surgery.date, today)}</dd>
+        </div>
+        <div>
+          <dt>{latest ? 'Ölçüm' : 'Beklenen'}</dt>
+          <dd>
+            <CountUp value={measured} format={(value) => fmtScore(Math.round(value))} />
+          </dd>
+        </div>
+        <div>
+          <dt>Greft</dt>
+          <dd>{surgery.graftCount ? fmtInt(surgery.graftCount) : '–'}</dd>
+        </div>
+      </dl>
     </header>
+  )
+}
+
+function Alerts({ state, today }: { state: AppState; today: ISODate }) {
+  const surgery = state.surgery!
+  const flagged = needsAttention(state.symptoms[today])
+  const lowStock = state.meds.filter((med) => stockStatus(med, state.doses, today)?.low)
+  const next = state.appointments
+    .filter((item) => !item.done && item.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time))[0]
+  const nextRule = ruleStatuses(surgery.date, state.ruleDays, today).find((rule) => !rule.free)
+  const nextReminder = planReminders(state, new Date()).find((item) => item.kind !== 'nag')
+
+  return (
+    <>
+      {flagged && (
+        <div className="alert" role="alert">
+          <ShieldAlert size={22} aria-hidden />
+          <div>
+            <strong>Bu belirti kliniğe danışılmalı</strong>
+            <span>Bugün işaretlediğin belirtileri kliniğine bildir.</span>
+          </div>
+          {surgery.clinicPhone && (
+            <a className="round-button round-accent" href={`tel:${surgery.clinicPhone}`} aria-label="Kliniği ara">
+              <Phone size={18} aria-hidden />
+            </a>
+          )}
+        </div>
+      )}
+      <div className="ticker">
+        {nextReminder && (
+          <a href="#hatirlatma" className="ticker-item">
+            <BellRing size={16} aria-hidden />
+            <span>
+              <small>Sıradaki hatırlatma</small>
+              {localToday(nextReminder.at) === today ? '' : `${fmtDayShort(localToday(nextReminder.at))} `}
+              {nextReminder.at.toTimeString().slice(0, 5)} {nextReminder.title}
+            </span>
+          </a>
+        )}
+        {next && (
+          <a href="#randevu" className="ticker-item">
+            <CalendarClock size={16} aria-hidden />
+            <span>
+              <small>{next.kind}</small>
+              {next.date === today ? 'Bugün' : fmtDayShort(next.date)} {next.time}
+            </span>
+          </a>
+        )}
+        {nextRule && (
+          <a href="#kurallar" className="ticker-item">
+            <TimerReset size={16} aria-hidden />
+            <span>
+              <small>{nextRule.title}</small>
+              {nextRule.remaining} gün kaldı
+            </span>
+          </a>
+        )}
+        {lowStock.map((med) => (
+          <a key={med.id} href="#ilaclar" className="ticker-item" data-tone="warn">
+            <Package size={16} aria-hidden />
+            <span>
+              <small>Stok azalıyor</small>
+              {med.name}
+            </span>
+          </a>
+        ))}
+      </div>
+    </>
   )
 }
 
 function DoseCapsule({
   label,
+  time,
   done,
   medName,
   onToggle,
 }: {
   label: string
+  time: string
   done: boolean
   medName: string
   onToggle: () => void
@@ -105,6 +240,7 @@ function DoseCapsule({
           )}
         </AnimatePresence>
         {label}
+        <small>{time}</small>
       </span>
     </Press>
   )
@@ -113,6 +249,7 @@ function DoseCapsule({
 function DayProgress({ state, today }: { state: AppState; today: ISODate }) {
   const [date, setDate] = useState(today)
   const [cheer, setCheer] = useState(false)
+  const [adding, setAdding] = useState(false)
   useEffect(() => setDate(today), [today])
   useEffect(() => {
     if (!cheer) return
@@ -125,10 +262,7 @@ function DayProgress({ state, today }: { state: AppState; today: ISODate }) {
   const planned = state.meds.filter((med) => plannedSlots(med, date) > 0)
   const resting = state.meds.filter((med) => inUseOn(med, date) && plannedSlots(med, date) === 0)
   const totalSlots = planned.reduce((sum, med) => sum + plannedSlots(med, date), 0)
-  const takenCount = planned.reduce(
-    (sum, med) => sum + takenSlots(state.doses, med.id, date, plannedSlots(med, date)),
-    0,
-  )
+  const takenCount = planned.reduce((sum, med) => sum + takenSlots(state.doses, med.id, date, plannedSlots(med, date)), 0)
   const days = streak(state.meds, state.doses, today)
   const week = windowTally(state.meds, state.doses, 7, today)
 
@@ -137,7 +271,7 @@ function DayProgress({ state, today }: { state: AppState; today: ISODate }) {
     actions.toggleDose(date, med.id, slot)
     if (wasTaken) return
     tapFirm()
-    burstHair(24)
+    scanPulse()
     const current = getState()
     if (!wasComplete && dayRatio(current.meds, current.doses, date) === 1) {
       tapSuccess()
@@ -147,7 +281,7 @@ function DayProgress({ state, today }: { state: AppState; today: ISODate }) {
   }
 
   return (
-    <section className="card card-glow">
+    <section id="dozlar" className="card card-glow">
       <div className="progress-head">
         <Ring value={totalSlots ? takenCount / totalSlots : 0}>
           <strong className="ring-value">
@@ -182,7 +316,7 @@ function DayProgress({ state, today }: { state: AppState; today: ISODate }) {
             <dl className="mini-stats">
               <div>
                 <dt>
-                  <Flame size={15} aria-hidden /> Seri
+                  <Flame size={14} aria-hidden /> Seri
                 </dt>
                 <dd>
                   <CountUp value={days} /> gün
@@ -213,11 +347,6 @@ function DayProgress({ state, today }: { state: AppState; today: ISODate }) {
         )}
       </AnimatePresence>
 
-      {state.meds.length === 0 && (
-        <a href="#ilaclar" className="cta">
-          İlaç veya takviye ekle
-        </a>
-      )}
       {state.meds.length > 0 && planned.length === 0 && <p className="muted">Bu gün için planlı doz yok.</p>}
 
       <ul className="doses">
@@ -228,7 +357,7 @@ function DayProgress({ state, today }: { state: AppState; today: ISODate }) {
             <li key={med.id} className="dose">
               <div className="dose-name">
                 <strong>{med.name}</strong>
-                {med.dose && <span>{med.dose}</span>}
+                {amountLabel(med) && <span>{amountLabel(med)}</span>}
               </div>
               <div className="capsules">
                 {SLOT_NAMES[slots].map((label, slot) => {
@@ -237,6 +366,7 @@ function DayProgress({ state, today }: { state: AppState; today: ISODate }) {
                     <DoseCapsule
                       key={label}
                       label={label}
+                      time={med.slotTimes[slot] ?? ''}
                       done={done}
                       medName={med.name}
                       onToggle={() => toggle(med, slot, done)}
@@ -249,9 +379,20 @@ function DayProgress({ state, today }: { state: AppState; today: ISODate }) {
         })}
       </ul>
 
-      {resting.length > 0 && (
-        <p className="muted">Bu gün planı olmayan: {resting.map((med) => med.name).join(', ')}</p>
-      )}
+      {resting.length > 0 && <p className="muted">Bu gün planı olmayan: {resting.map((med) => med.name).join(', ')}</p>}
+
+      <div className="dock-actions">
+        <Press className="mini-button mini-accent" onClick={() => setAdding(true)}>
+          <Plus size={16} aria-hidden /> İlaç ekle
+        </Press>
+        {state.meds.length > 0 && (
+          <a href="#ilaclar" className="mini-button">
+            <Pencil size={15} aria-hidden /> Dozları düzenle
+          </a>
+        )}
+      </div>
+
+      {adding && <MedForm med={null} onClose={() => setAdding(false)} />}
     </section>
   )
 }
@@ -261,10 +402,11 @@ function CareTiles({ state, today }: { state: AppState; today: ISODate }) {
   const washed = state.washes.some((wash) => wash.date === today)
   const wash = washStats(surgeryDate, state.washes, today)
   const scab = scabStats(surgeryDate, state.scabs, today)
+  const logged = !!state.symptoms[today]
 
   const washNote =
     wash.averageGap !== null
-      ? `Ortalama ${fmtDecimal(wash.averageGap)} günde bir`
+      ? `Ort. ${fmtDecimal(wash.averageGap)} günde bir`
       : wash.count > 0
         ? `İlk yıkama ${wash.firstDay}. gün`
         : 'Henüz kayıt yok'
@@ -280,6 +422,7 @@ function CareTiles({ state, today }: { state: AppState; today: ISODate }) {
           } else {
             actions.addWash(today)
             tapFirm()
+            scanPulse()
           }
         }}
       >
@@ -294,25 +437,34 @@ function CareTiles({ state, today }: { state: AppState; today: ISODate }) {
         <small>{washNote}</small>
       </Press>
 
-      <div className="tile tile-scab">
-        <span className="scab-steps" aria-hidden>
-          {['bekliyor', 'suruyor', 'tamam'].map((step, index) => (
-            <i key={step} data-on={['bekliyor', 'suruyor', 'tamam'].indexOf(scab.status) >= index || undefined} />
-          ))}
+      <a href="#belirti" className="tile tile-pulse" data-done={logged || undefined}>
+        <span className="tile-icon tile-icon-pulse">
+          {logged ? <Check size={22} strokeWidth={3} aria-hidden /> : <Activity size={22} aria-hidden />}
         </span>
-        <strong>Kabuk dökümü</strong>
-        {scab.status === 'tamam' && <small>{scab.endDay}. günde tamamlandı</small>}
-        {scab.status === 'suruyor' && (
-          <Press className="mini-button" onClick={() => actions.saveScabs({ ...state.scabs, end: today })}>
-            Tamamen döküldü
-          </Press>
-        )}
-        {scab.status === 'bekliyor' && (
-          <Press className="mini-button" onClick={() => actions.saveScabs({ ...state.scabs, start: today })}>
-            Döküm başladı
-          </Press>
-        )}
-      </div>
+        <strong>{logged ? 'Belirtiler kaydedildi' : 'Bugün nasılsın?'}</strong>
+        <small>Ağrı, şişlik, kaşıntı</small>
+      </a>
+
+      {scab.status !== 'tamam' && (
+        <div className="tile tile-wide">
+          <span className="scab-steps" aria-hidden>
+            {['bekliyor', 'suruyor', 'tamam'].map((step, index) => (
+              <i key={step} data-on={['bekliyor', 'suruyor', 'tamam'].indexOf(scab.status) >= index || undefined} />
+            ))}
+          </span>
+          <strong>Kabuk dökümü</strong>
+          {scab.status === 'suruyor' && (
+            <Press className="mini-button" onClick={() => actions.saveScabs({ ...state.scabs, end: today })}>
+              Tamamen döküldü
+            </Press>
+          )}
+          {scab.status === 'bekliyor' && (
+            <Press className="mini-button" onClick={() => actions.saveScabs({ ...state.scabs, start: today })}>
+              Döküm başladı
+            </Press>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -321,9 +473,8 @@ function WeekCheck({ state, today }: { state: AppState; today: ISODate }) {
   const [adding, setAdding] = useState(false)
   const surgeryDate = state.surgery!.date
   const week = weekPeriod(surgeryDate, weekNumber(surgeryDate, today))
-  const entry = state.checkIns
+  const entry = sortedCheckIns(state.checkIns)
     .filter((item) => item.date >= week.start && item.date <= week.end)
-    .sort((a, b) => a.date.localeCompare(b.date))
     .at(-1)
   const daysLeft = diffDays(today, week.end)
 
@@ -331,7 +482,7 @@ function WeekCheck({ state, today }: { state: AppState; today: ISODate }) {
     <>
       {entry ? (
         <a href="#surec" className="card week-done">
-          <Ring value={entry.fullness / 100} size={58} thickness={7} from="#2df5b0" to="#38b6ff" />
+          <Ring value={entry.fullness / 100} size={60} thickness={6} from="#b6ff3c" to="#2ef2ff" />
           <div>
             <strong>{week.n}. hafta ölçümü tamam</strong>
             <small>
@@ -358,18 +509,16 @@ function SurgeryCard({ state }: { state: AppState }) {
   return (
     <a href="#operasyon" className="card surgery-card">
       <div>
-        <small>Greft</small>
-        <strong className="display-number">
-          {surgery.graftCount ? <CountUp value={surgery.graftCount} format={fmtInt} /> : '–'}
-        </strong>
-      </div>
-      <div>
         <small>Klinik</small>
         <strong>{surgery.clinic || 'Ekle'}</strong>
       </div>
       <div>
         <small>Teknik</small>
         <strong>{surgery.technique}</strong>
+      </div>
+      <div>
+        <small>Tarih</small>
+        <strong>{fmtFull(surgery.date)}</strong>
       </div>
     </a>
   )
@@ -385,6 +534,9 @@ export function Today() {
     <>
       <Hero state={state} today={today} />
       <div className="stack dock">
+        <Reveal i={0}>
+          <Alerts state={state} today={today} />
+        </Reveal>
         <Reveal i={1}>
           <DayProgress state={state} today={today} />
         </Reveal>
@@ -401,8 +553,12 @@ export function Today() {
         {started && (
           <Reveal i={4}>
             <section className="card stage-card">
+              <small className="hud-label">Bu dönem</small>
               <h2>{stageAt(day).title}</h2>
               <p>{stageAt(day).body}</p>
+              <a href="#rehber" className="link">
+                Normal mi? rehberini aç
+              </a>
             </section>
           </Reveal>
         )}

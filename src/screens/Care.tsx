@@ -2,7 +2,7 @@ import { Check, Droplets, Trash2 } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useState } from 'react'
 import { WashGapChart } from '../components/Charts'
-import { CountUp, Press, Reveal } from '../components/fx'
+import { CountUp, Press, Reveal, SubHead } from '../components/fx'
 import { scabStats, TYPICAL_SCAB_END, washStats } from '../domain/care'
 import { fmtDay } from '../domain/dates'
 import { fmtDecimal } from '../domain/format'
@@ -245,9 +245,7 @@ function Scabs() {
 export function Care() {
   return (
     <div className="page stack">
-      <header className="page-head">
-        <h1>Bakım</h1>
-      </header>
+      <SubHead title="Bakım" />
       <Washes />
       <Scabs />
       <p className="muted">Yıkama sıklığını kliniğinin talimatına göre sürdür. Buradaki sayılar öneri değil, kendi kaydındır.</p>

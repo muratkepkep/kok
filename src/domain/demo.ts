@@ -21,22 +21,37 @@ export const buildDemoState = (today: ISODate): AppState => {
       id: 'ornek-minoksidil',
       name: 'Minoksidil',
       kind: 'ilac',
-      dose: '%5 köpük, 1 ml',
-      schedule: [{ from: addDays(surgeryDate, 21), timesPerDay: 2, everyNDays: 1 }],
+      dose: '%5 köpük',
+      unit: 'ml',
+      schedule: [{ from: addDays(surgeryDate, 21), timesPerDay: 2, everyNDays: 1, amount: 1 }],
+      slotTimes: ['09:00', '21:30'],
+      endDate: null,
+      stock: { from: addDays(today, -40), units: 300, perDose: 1, alertDays: 7 },
+      note: '',
     },
     {
       id: 'ornek-finasterid',
       name: 'Finasterid',
       kind: 'ilac',
-      dose: '1 mg tablet',
-      schedule: [{ from: addDays(surgeryDate, 7), timesPerDay: 1, everyNDays: 1 }],
+      dose: 'Tablet',
+      unit: 'mg',
+      schedule: [{ from: addDays(surgeryDate, 7), timesPerDay: 1, everyNDays: 1, amount: 1 }],
+      slotTimes: ['09:00'],
+      endDate: null,
+      stock: { from: addDays(today, -24), units: 28, perDose: 1, alertDays: 7 },
+      note: '',
     },
     {
       id: 'ornek-biotin',
       name: 'Biotin',
       kind: 'takviye',
-      dose: '5000 mcg',
-      schedule: [{ from: addDays(surgeryDate, 7), timesPerDay: 1, everyNDays: 1 }],
+      dose: 'Tablet',
+      unit: 'mcg',
+      schedule: [{ from: addDays(surgeryDate, 7), timesPerDay: 1, everyNDays: 1, amount: 5000 }],
+      slotTimes: ['13:00'],
+      endDate: null,
+      stock: null,
+      note: '',
     },
   ]
 
@@ -81,7 +96,18 @@ export const buildDemoState = (today: ISODate): AppState => {
       sideEffects: week < 3 ? ['Kaşıntı'] : week === 10 ? ['Sivilce (follikülit)'] : [],
       note: week === 6 ? 'Dökülme hızlandı, kliniğe sordum, beklenen dönemdeymiş.' : '',
       photoIds: [],
+      photoAngles: {},
     })
+  }
+
+  const symptoms: AppState['symptoms'] = {}
+  for (let day = 1; day <= 12; day += 1) {
+    const level = day < 4 ? 2 : day < 8 ? 1 : 0
+    symptoms[addDays(surgeryDate, day)] = {
+      scores: { Ağrı: level, Şişlik: day < 6 ? level : 0, Kaşıntı: day > 5 ? 1 : 0 },
+      flags: [],
+      note: '',
+    }
   }
 
   return {
@@ -92,7 +118,9 @@ export const buildDemoState = (today: ISODate): AppState => {
       clinic: 'Örnek Klinik',
       doctor: '',
       city: 'İstanbul',
+      clinicPhone: '',
       graftCount: 3200,
+      graftMap: { 'Ön saç çizgisi': 1800, 'Orta bölge': 1000, Tepe: 400 },
       technique: 'DHI',
       areas: ['Ön saç çizgisi', 'Orta bölge'],
       note: '',
@@ -102,5 +130,10 @@ export const buildDemoState = (today: ISODate): AppState => {
     washes,
     scabs: { start: addDays(surgeryDate, 8), end: addDays(surgeryDate, 12) },
     checkIns,
+    symptoms,
+    appointments: [
+      { id: 'ornek-kontrol', kind: 'Kontrol', title: '6. ay kontrolü', date: addDays(today, 5), time: '14:00', note: '', done: false },
+      { id: 'ornek-prp', kind: 'PRP', title: 'PRP seansı', date: addDays(today, 19), time: '11:30', note: '', done: false },
+    ],
   }
 }

@@ -1,5 +1,5 @@
-import { ArrowLeft } from 'lucide-react'
 import { useRef, useState } from 'react'
+import { SubHead } from '../components/fx'
 import { SurgeryFields } from '../components/SurgeryFields'
 import { buildBackup, parseBackup } from '../domain/backup'
 import { EMPTY_STATE } from '../domain/types'
@@ -16,7 +16,7 @@ function Backup() {
     try {
       const backup = buildBackup(getState(), await exportPhotos())
       const saved = await saveBackupFile(`kok-yedek-${today}.json`, JSON.stringify(backup))
-      if (saved) setMessage('Yedek hazırlandı.')
+      if (saved) setMessage('Yedek alındı.')
     } catch {
       setMessage('Yedek oluşturulamadı. Cihazda yeterli alan olduğundan emin ol.')
     }
@@ -61,7 +61,7 @@ function Backup() {
         />
         <button
           type="button"
-          className="button-quiet"
+          className="button-quiet button-danger"
           onClick={() => {
             if (window.confirm('Tüm kayıtlar ve fotoğraflar silinsin mi? Bu işlem geri alınamaz.')) {
               void clearPhotos()
@@ -85,12 +85,7 @@ export function SurgeryPage() {
 
   return (
     <div className="page stack">
-      <header className="page-head">
-        <h1>Operasyon</h1>
-        <a href="#bugun" className="round-button" aria-label="Bugün sayfasına dön">
-          <ArrowLeft size={20} aria-hidden />
-        </a>
-      </header>
+      <SubHead title="Operasyon" />
       <div className="split">
         <form
           className="card form-card"
@@ -114,6 +109,18 @@ export function SurgeryPage() {
             </button>
           </div>
         </form>
+        <section className="card">
+          <h2>Klinik notları</h2>
+          <p className="section-note">Doktorunun verdiği talimatlar, sana özel süreler ve sorular burada dursun.</p>
+          <label className="field">
+            <span className="visually-hidden">Klinik notları</span>
+            <textarea
+              rows={4}
+              value={state.clinicNotes}
+              onChange={(event) => actions.saveClinicNotes(event.target.value)}
+            />
+          </label>
+        </section>
         <Backup />
       </div>
     </div>

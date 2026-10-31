@@ -87,9 +87,9 @@ export const replacePhotos = async (photos: Record<string, string>) => {
  * iPhone'da paylaşım sayfasını açar, tarayıcıda dosyayı indirir. Kullanıcı
  * paylaşım sayfasını kapatırsa false döner.
  */
-export const saveBackupFile = async (filename: string, json: string) => {
+export const saveBackupFile = async (filename: string, content: string, type = 'application/json') => {
   if (!Capacitor.isNativePlatform()) {
-    const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }))
+    const url = URL.createObjectURL(new Blob([content], { type }))
     const link = document.createElement('a')
     link.href = url
     link.download = filename
@@ -99,7 +99,7 @@ export const saveBackupFile = async (filename: string, json: string) => {
   }
   const { uri } = await Filesystem.writeFile({
     path: filename,
-    data: json,
+    data: content,
     directory: Directory.Cache,
     encoding: Encoding.UTF8,
   })

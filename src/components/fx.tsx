@@ -1,4 +1,5 @@
 import { animate, motion, useReducedMotion, type HTMLMotionProps } from 'motion/react'
+import { ChevronLeft } from 'lucide-react'
 import { useEffect, useId, useRef, type ReactNode } from 'react'
 import { fmtInt } from '../domain/format'
 import { tapLight } from '../haptics'
@@ -18,9 +19,9 @@ export function Reveal({
   return (
     <motion.div
       className={className}
-      initial={{ opacity: 0, y: 22, scale: 0.97 }}
+      initial={{ opacity: 0, y: 18, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ type: 'spring', stiffness: 170, damping: 19, delay: Math.min(i, 10) * 0.06 }}
+      transition={{ type: 'spring', stiffness: 190, damping: 21, delay: Math.min(i, 10) * 0.05 }}
     >
       {children}
     </motion.div>
@@ -32,7 +33,7 @@ export function Press({ children, onClick, ...props }: HTMLMotionProps<'button'>
   return (
     <motion.button
       type="button"
-      whileTap={{ scale: 0.94 }}
+      whileTap={{ scale: 0.95 }}
       transition={SPRING}
       onClick={(event) => {
         tapLight()
@@ -65,7 +66,7 @@ export function CountUp({
     const node = ref.current
     if (!node) return
     const controls = animate(shown.current, value, {
-      duration: reduced ? 0 : 1,
+      duration: reduced ? 0 : 1.1,
       ease: [0.16, 1, 0.3, 1],
       onUpdate: (next) => {
         shown.current = next
@@ -83,7 +84,7 @@ export function CountUp({
 }
 
 interface RingProps {
-  /** 0–1 arası doluluk. */
+  /** 0–1 doluluk. */
   value: number
   size?: number
   thickness?: number
@@ -92,11 +93,13 @@ interface RingProps {
   children?: ReactNode
 }
 
-/** Yaylanarak dolan parlak halka. */
-export function Ring({ value, size = 132, thickness = 14, from = '#ff3d81', to = '#ffd23f', children }: RingProps) {
+/** Ölçek çizgili, yaylanarak dolan HUD halkası. */
+export function Ring({ value, size = 132, thickness = 12, from = '#2ef2ff', to = '#7a5cff', children }: RingProps) {
   const gradient = useId()
-  const radius = (size - thickness) / 2
+  const radius = (size - thickness) / 2 - 5
   const center = size / 2
+  const tickRadius = size / 2 - 1.5
+  const ticks = Math.round(size / 3.4)
   return (
     <div className="ring" style={{ width: size, height: size }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden>
@@ -106,6 +109,13 @@ export function Ring({ value, size = 132, thickness = 14, from = '#ff3d81', to =
             <stop offset="1" stopColor={to} />
           </linearGradient>
         </defs>
+        <circle
+          className="ring-ticks"
+          cx={center}
+          cy={center}
+          r={tickRadius}
+          strokeDasharray={`1.5 ${((Math.PI * 2 * tickRadius) / ticks - 1.5).toFixed(2)}`}
+        />
         <circle className="ring-track" cx={center} cy={center} r={radius} strokeWidth={thickness} />
         <motion.circle
           cx={center}
@@ -154,6 +164,51 @@ export function Segmented<T extends string>({ name, label, options, value, onCha
           <span className="switcher-label">{option.label}</span>
         </button>
       ))}
+    </div>
+  )
+}
+
+/** Alt sayfaların başlığı ve geri bağlantısı. */
+export function SubHead({ title, back = 'merkez', children }: { title: string; back?: string; children?: ReactNode }) {
+  return (
+    <header className="page-head">
+      <div className="page-title">
+        <a href={`#${back}`} className="round-button round-small" aria-label="Geri" onClick={tapLight}>
+          <ChevronLeft size={20} aria-hidden />
+        </a>
+        <h1>{title}</h1>
+      </div>
+      {children}
+    </header>
+  )
+}
+
+/** Azalt ve artır düğmeli sayı denetimi. */
+export function Stepper({
+  value,
+  step,
+  min = 0,
+  label,
+  format,
+  onChange,
+}: {
+  value: number
+  step: number
+  min?: number
+  label: string
+  format?: (value: number) => string
+  onChange: (value: number) => void
+}) {
+  const change = (next: number) => onChange(Math.max(min, Math.round(next * 1000) / 1000))
+  return (
+    <div className="stepper-control" role="group" aria-label={label}>
+      <Press aria-label={`${label} azalt`} disabled={value <= min} onClick={() => change(value - step)}>
+        −
+      </Press>
+      <output>{format ? format(value) : value}</output>
+      <Press aria-label={`${label} artır`} onClick={() => change(value + step)}>
+        +
+      </Press>
     </div>
   )
 }

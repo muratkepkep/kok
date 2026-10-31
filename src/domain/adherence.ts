@@ -1,5 +1,6 @@
 import { addDays, diffDays, eachDay, maxDate, minDate, weekdayIndex } from './dates'
-import type { DoseLog, DoseSchedule, ISODate, Medication } from './types'
+import { fmtDecimal } from './format'
+import type { DoseLog, DoseSchedule, DoseUnit, ISODate, Medication } from './types'
 
 export const scheduleOn = (med: Medication, date: ISODate): DoseSchedule | null => {
   let current: DoseSchedule | null = null
@@ -11,10 +12,10 @@ const latestPlan = (med: Medication) => med.schedule[med.schedule.length - 1]
 
 export const isStopped = (med: Medication) => latestPlan(med).paused === true
 
-/** Ara verilmiş olsa bile ilacın geçerli kullanım sıklığı. */
+/** Ara verilmiş olsa bile ilacın geçerli kullanım planı. */
 export const activePlan = (med: Medication) => {
-  const { timesPerDay, everyNDays } = latestPlan(med)
-  return { timesPerDay, everyNDays }
+  const { timesPerDay, everyNDays, weekdays, amount } = latestPlan(med)
+  return { timesPerDay, everyNDays, weekdays: weekdays ?? null, amount: amount ?? null }
 }
 
 /**
@@ -27,19 +28,25 @@ export const withPlan = (
   today: ISODate,
 ): DoseSchedule[] => {
   const last = schedule[schedule.length - 1]
+  const paused = plan.paused ?? last.paused
+  const sameRhythm = plan.everyNDays === last.everyNDays && paused === last.paused
+  const entry = { ...plan, paused, anchor: sameRhythm ? (last.anchor ?? last.from) : undefined }
   return last.from >= today
-    ? [...schedule.slice(0, -1), { ...last, ...plan }]
-    : [...schedule, { from: today, ...plan }]
+    ? [...schedule.slice(0, -1), { ...last, ...entry }]
+    : [...schedule, { from: today, ...entry }]
 }
 
 export const plannedSlots = (med: Medication, date: ISODate) => {
+  if (med.endDate && date > med.endDate) return 0
   const schedule = scheduleOn(med, date)
   if (!schedule || schedule.paused) return 0
-  return diffDays(schedule.from, date) % schedule.everyNDays === 0 ? schedule.timesPerDay : 0
+  if (schedule.weekdays?.length) return schedule.weekdays.includes(weekdayIndex(date)) ? schedule.timesPerDay : 0
+  return diffDays(schedule.anchor ?? schedule.from, date) % schedule.everyNDays === 0 ? schedule.timesPerDay : 0
 }
 
 /** İlaç o gün kullanımda mı; gün aşırı planın boş günleri de kullanımda sayılır. */
 export const inUseOn = (med: Medication, date: ISODate) => {
+  if (med.endDate && date > med.endDate) return false
   const schedule = scheduleOn(med, date)
   return schedule !== null && !schedule.paused
 }
@@ -56,12 +63,39 @@ export const SLOT_NAMES: Record<number, string[]> = {
   4: ['Sabah', 'Öğle', 'Akşam', 'Gece'],
 }
 
-export const scheduleLabel = (schedule: Pick<DoseSchedule, 'timesPerDay' | 'everyNDays'>) => {
+export const WEEKDAY_SHORT = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz']
+
+/** Doz düğmelerinin birime uygun artış miktarı. */
+export const doseStep = (unit: DoseUnit) => (unit === 'mcg' || unit === 'IU' ? 100 : unit === 'mg' || unit === 'ml' ? 0.5 : 1)
+
+export const scheduleLabel = (schedule: Pick<DoseSchedule, 'timesPerDay' | 'everyNDays' | 'weekdays'>) => {
   const times = schedule.timesPerDay === 1 ? 'tek doz' : `${schedule.timesPerDay} kez`
+  if (schedule.weekdays?.length) {
+    const days = [...schedule.weekdays].sort((a, b) => a - b).map((day) => WEEKDAY_SHORT[day])
+    return `${days.join(', ')}, ${times}`
+  }
   if (schedule.everyNDays === 1) return schedule.timesPerDay === 1 ? 'Günde bir kez' : `Günde ${schedule.timesPerDay} kez`
   if (schedule.everyNDays === 2) return `Gün aşırı, ${times}`
   if (schedule.everyNDays === 7) return `Haftada bir, ${times}`
   return `${schedule.everyNDays} günde bir, ${times}`
+}
+
+/** "2 ml" gibi güncel miktar; girilmediyse boş. */
+export const amountLabel = (med: Medication) => {
+  const { amount } = activePlan(med)
+  return amount === null ? '' : `${fmtDecimal(amount)} ${med.unit}`
+}
+
+export const doseLabel = (med: Medication) => [amountLabel(med), med.dose].filter(Boolean).join(', ')
+
+/** Yeniden eskiye doz değişiklikleri. */
+export const doseHistory = (med: Medication) => {
+  const rows: { from: ISODate; amount: number }[] = []
+  for (const entry of med.schedule) {
+    if (entry.amount == null) continue
+    if (rows.at(-1)?.amount !== entry.amount) rows.push({ from: entry.from, amount: entry.amount })
+  }
+  return rows.reverse()
 }
 
 export interface Tally {
@@ -131,6 +165,24 @@ export const streak = (meds: Medication[], doses: DoseLog, today: ISODate) => {
   return count
 }
 
+/** Başlangıçtan bugüne ulaşılan en uzun seri. */
+export const bestStreak = (meds: Medication[], doses: DoseLog, today: ISODate) => {
+  if (meds.length === 0) return 0
+  let best = 0
+  let run = 0
+  for (const date of eachDay(meds.map(medStart).reduce(minDate), today)) {
+    const ratio = dayRatio(meds, doses, date)
+    if (ratio === null) continue
+    if (ratio >= 1) {
+      run += 1
+      best = Math.max(best, run)
+    } else if (date !== today) {
+      run = 0
+    }
+  }
+  return best
+}
+
 export interface WeekdayMiss {
   weekday: number
   planned: number
@@ -180,4 +232,20 @@ export const windowTally = (meds: Medication[], doses: DoseLog, days: number, to
   if (meds.length === 0) return toTally(0, 0)
   const first = meds.map(medStart).reduce(minDate)
   return tally(meds, doses, maxDate(first, addDays(today, -(days - 1))), today, today)
+}
+
+/** Kalan stok ve bitişe kalan gün. Plan yoksa gün sayısı boş döner. */
+export const stockStatus = (med: Medication, doses: DoseLog, today: ISODate) => {
+  const { stock } = med
+  if (!stock) return null
+  let used = 0
+  for (const date of eachDay(stock.from, today)) {
+    used += takenSlots(doses, med.id, date, plannedSlots(med, date)) * stock.perDose
+  }
+  const remaining = Math.max(0, stock.units - used)
+  const plan = activePlan(med)
+  const perWeek = plan.weekdays?.length ? plan.weekdays.length : 7 / plan.everyNDays
+  const dailyUse = isStopped(med) ? 0 : (plan.timesPerDay * perWeek * stock.perDose) / 7
+  const daysLeft = dailyUse > 0 ? Math.floor(remaining / dailyUse) : null
+  return { remaining, daysLeft, low: daysLeft !== null && daysLeft <= stock.alertDays }
 }

@@ -1,3 +1,4 @@
+import { fmtInt } from '../domain/format'
 import { AREAS, TECHNIQUES, type Surgery } from '../domain/types'
 
 interface Props {
@@ -13,6 +14,13 @@ export function SurgeryFields({ value, onChange }: Props) {
       'areas',
       value.areas.includes(area) ? value.areas.filter((item) => item !== area) : [...value.areas, area],
     )
+
+  const setAreaGrafts = (area: string, text: string) => {
+    const { [area]: _removed, ...rest } = value.graftMap
+    set('graftMap', text === '' ? rest : { ...rest, [area]: Number(text) })
+  }
+
+  const mapped = Object.values(value.graftMap).reduce((sum, count) => sum + count, 0)
 
   return (
     <>
@@ -42,10 +50,21 @@ export function SurgeryFields({ value, onChange }: Props) {
         </label>
       </div>
 
-      <label className="field">
-        <span>Klinik</span>
-        <input value={value.clinic} onChange={(event) => set('clinic', event.target.value)} />
-      </label>
+      <div className="field-row">
+        <label className="field">
+          <span>Klinik</span>
+          <input value={value.clinic} onChange={(event) => set('clinic', event.target.value)} />
+        </label>
+        <label className="field">
+          <span>Klinik telefonu</span>
+          <input
+            type="tel"
+            inputMode="tel"
+            value={value.clinicPhone}
+            onChange={(event) => set('clinicPhone', event.target.value)}
+          />
+        </label>
+      </div>
 
       <div className="field-row">
         <label className="field">
@@ -89,6 +108,28 @@ export function SurgeryFields({ value, onChange }: Props) {
             </button>
           ))}
         </div>
+        {value.areas.length > 0 && (
+          <div className="field-row graft-map">
+            {value.areas.map((area) => (
+              <label key={area} className="field">
+                <span>{area}, greft</span>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  inputMode="numeric"
+                  value={value.graftMap[area] ?? ''}
+                  onChange={(event) => setAreaGrafts(area, event.target.value)}
+                />
+              </label>
+            ))}
+          </div>
+        )}
+        {mapped > 0 && value.graftCount !== null && mapped !== value.graftCount && (
+          <small>
+            Bölgelerin toplamı {fmtInt(mapped)}, toplam greft {fmtInt(value.graftCount)}.
+          </small>
+        )}
       </fieldset>
 
       <label className="field">

@@ -14,9 +14,9 @@ const MONTH_MARKS = [
   { week: 78, label: '18. ay' },
 ]
 const FIBERS = [
-  ['#ff3d81', '#ff8a3d', '#ffd23f'],
-  ['#ff3d81', '#b45cff', '#38b6ff'],
-  ['#ff8a3d', '#ffd23f', '#2df5b0'],
+  ['#ff2e9f', '#7a5cff', '#2ef2ff'],
+  ['#7a5cff', '#2ef2ff', '#ffffff'],
+  ['#ff2e9f', '#a08cff', '#2ef2ff'],
 ]
 
 interface Strand {
@@ -61,8 +61,8 @@ const glowSprite = () => {
   const ctx = sprite.getContext('2d') as CanvasRenderingContext2D
   const gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2)
   gradient.addColorStop(0, 'rgba(255,255,255,1)')
-  gradient.addColorStop(0.25, 'rgba(255,240,200,.75)')
-  gradient.addColorStop(1, 'rgba(255,120,160,0)')
+  gradient.addColorStop(0.25, 'rgba(190,245,255,.75)')
+  gradient.addColorStop(1, 'rgba(46,242,255,0)')
   ctx.fillStyle = gradient
   ctx.fillRect(0, 0, size, size)
   return sprite
@@ -141,9 +141,9 @@ export function HairField({ currentWeek }: Props) {
         return gradient
       })
       groundLine = ctx.createLinearGradient(0, 0, width, 0)
-      groundLine.addColorStop(0, '#ff3d81')
-      groundLine.addColorStop(0.5, '#ffd23f')
-      groundLine.addColorStop(1, '#2df5b0')
+      groundLine.addColorStop(0, '#ff2e9f')
+      groundLine.addColorStop(0.5, '#7a5cff')
+      groundLine.addColorStop(1, '#2ef2ff')
     }
 
     const traceStrand = (strand: Strand, time: number) => {

@@ -4,7 +4,7 @@ import { fmtFull } from '../domain/dates'
 import { sortedCheckIns } from '../domain/efficacy'
 import { fmtScore } from '../domain/format'
 import { dayNumber, expectedAt, weekNumber } from '../domain/timeline'
-import { SHEDDING_LEVELS, SIDE_EFFECTS, type CheckIn, type ISODate } from '../domain/types'
+import { PHOTO_ANGLES, SHEDDING_LEVELS, SIDE_EFFECTS, type CheckIn, type ISODate, type PhotoAngle } from '../domain/types'
 import { deletePhoto, savePhoto, usePhotoUrl } from '../photos'
 import { actions, useAppState, useToday } from '../store'
 import { Sheet } from './Sheet'
@@ -16,7 +16,17 @@ interface Props {
   onClose: () => void
 }
 
-function PhotoThumb({ id, onRemove }: { id: string; onRemove: () => void }) {
+function PhotoThumb({
+  id,
+  angle,
+  onAngle,
+  onRemove,
+}: {
+  id: string
+  angle: PhotoAngle
+  onAngle: (angle: PhotoAngle) => void
+  onRemove: () => void
+}) {
   const url = usePhotoUrl(id)
   return (
     <div className="photo-thumb">
@@ -24,6 +34,11 @@ function PhotoThumb({ id, onRemove }: { id: string; onRemove: () => void }) {
       <button type="button" className="icon-button" aria-label="Fotoğrafı kaldır" onClick={onRemove}>
         <Trash2 size={16} />
       </button>
+      <select aria-label="Çekim açısı" value={angle} onChange={(event) => onAngle(event.target.value as PhotoAngle)}>
+        {PHOTO_ANGLES.map((item) => (
+          <option key={item}>{item}</option>
+        ))}
+      </select>
     </div>
   )
 }
@@ -39,6 +54,8 @@ export function CheckInForm({ surgeryDate, entry, defaultDate, onClose }: Props)
   const [sideEffects, setSideEffects] = useState(entry?.sideEffects ?? [])
   const [note, setNote] = useState(entry?.note ?? '')
   const [photoIds, setPhotoIds] = useState(entry?.photoIds ?? [])
+  const [photoAngles, setPhotoAngles] = useState(entry?.photoAngles ?? {})
+  const [nextAngle, setNextAngle] = useState<PhotoAngle>('Ön')
   const [photoError, setPhotoError] = useState('')
   const added = useRef<string[]>([])
 
@@ -57,6 +74,7 @@ export function CheckInForm({ surgeryDate, entry, defaultDate, onClose }: Props)
         const id = await savePhoto(file)
         added.current.push(id)
         setPhotoIds((ids) => [...ids, id])
+        setPhotoAngles((angles) => ({ ...angles, [id]: nextAngle }))
       }
     } catch {
       setPhotoError('Fotoğraf eklenemedi. JPEG veya PNG bir dosya dene.')
@@ -83,6 +101,7 @@ export function CheckInForm({ surgeryDate, entry, defaultDate, onClose }: Props)
       sideEffects,
       note: note.trim(),
       photoIds,
+      photoAngles: Object.fromEntries(photoIds.map((id) => [id, photoAngles[id] ?? 'Diğer'])),
     })
     onClose()
   }
@@ -179,11 +198,26 @@ export function CheckInForm({ surgeryDate, entry, defaultDate, onClose }: Props)
 
         <div className="field">
           <span>Fotoğraf</span>
+          <div className="chips" role="group" aria-label="Eklenecek fotoğrafın açısı">
+            {PHOTO_ANGLES.map((item) => (
+              <button
+                key={item}
+                type="button"
+                className="chip chip-small"
+                aria-pressed={nextAngle === item}
+                onClick={() => setNextAngle(item)}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
           <div className="photo-row">
             {photoIds.map((id) => (
               <PhotoThumb
                 key={id}
                 id={id}
+                angle={photoAngles[id] ?? 'Diğer'}
+                onAngle={(angle) => setPhotoAngles((angles) => ({ ...angles, [id]: angle }))}
                 onRemove={() => setPhotoIds((ids) => ids.filter((item) => item !== id))}
               />
             ))}
@@ -204,7 +238,7 @@ export function CheckInForm({ surgeryDate, entry, defaultDate, onClose }: Props)
           {photoError ? (
             <small className="field-error">{photoError}</small>
           ) : (
-            <small>Her seferinde aynı açı ve ışıkta çekersen karşılaştırma kolaylaşır.</small>
+            <small>Önce açıyı seç. Her hafta aynı açı ve ışıkta çekersen Foto kıyası daha doğru çalışır.</small>
           )}
         </div>
 

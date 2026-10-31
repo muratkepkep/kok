@@ -36,7 +36,12 @@ const med = (over: Partial<Medication> = {}): Medication => ({
   name: 'Minoksidil',
   kind: 'ilac',
   dose: '%5',
+  unit: 'ml',
   schedule: [{ from: '2026-03-01', timesPerDay: 2, everyNDays: 1 }],
+  slotTimes: ['09:00', '21:00'],
+  endDate: null,
+  stock: null,
+  note: '',
   ...over,
 })
 
@@ -49,6 +54,7 @@ const checkIn = (date: string, fullness: number): CheckIn => ({
   sideEffects: [],
   note: '',
   photoIds: [],
+  photoAngles: {},
 })
 
 describe('tarihler', () => {
@@ -183,7 +189,7 @@ describe('doz planı', () => {
     const paused = withPlan(med().schedule, { ...plan, paused: true }, '2026-03-05')
     const back = withPlan(paused, { ...plan, paused: false }, '2026-03-05')
     expect(back).toHaveLength(2)
-    expect(back[1]).toEqual({ from: '2026-03-05', timesPerDay: 2, everyNDays: 1, paused: false })
+    expect(back[1]).toMatchObject({ from: '2026-03-05', timesPerDay: 2, everyNDays: 1, paused: false })
   })
 
   it('başladığı gün ara verilen ilacın planı kaybolmaz', () => {
@@ -191,7 +197,7 @@ describe('doz planı', () => {
     const paused = med({ schedule: withPlan(first.schedule, { ...activePlan(first), paused: true }, '2026-03-01') })
     expect(plannedSlots(paused, '2026-03-01')).toBe(0)
     const resumed = med({ schedule: withPlan(paused.schedule, { ...activePlan(paused), paused: false }, '2026-03-04') })
-    expect(activePlan(resumed)).toEqual({ timesPerDay: 2, everyNDays: 1 })
+    expect(activePlan(resumed)).toMatchObject({ timesPerDay: 2, everyNDays: 1 })
     expect(plannedSlots(resumed, '2026-03-04')).toBe(2)
   })
 
@@ -393,7 +399,9 @@ describe('verimlilik', () => {
         clinic: '',
         doctor: '',
         city: '',
+        clinicPhone: '',
         graftCount: 3000,
+        graftMap: {},
         technique: 'DHI',
         areas: [],
         note: '',
@@ -554,7 +562,7 @@ describe('yedek', () => {
   it('yabancı ve bozuk dosyayı reddeder', () => {
     expect(() => parseBackup('{bozuk')).toThrow('Dosya okunamadı')
     expect(() => parseBackup('{"foo":1}')).toThrow('Kök yedeği değil')
-    expect(() => parseBackup('{"app":"kok","state":{"version":2}}')).toThrow('bu sürümüyle')
+    expect(() => parseBackup('{"app":"kok","state":{"version":3}}')).toThrow('bu sürümüyle')
     expect(() => parseBackup('{"app":"kok","state":{"version":1,"surgery":null}}')).toThrow('eksik')
   })
 })

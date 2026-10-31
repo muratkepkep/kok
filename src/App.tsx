@@ -1,4 +1,4 @@
-import { ChartNoAxesCombined, Droplets, Pill, Route, Sprout } from 'lucide-react'
+import { ChartNoAxesCombined, LayoutGrid, Pill, Route, Sprout } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useEffect, useState, type ComponentType } from 'react'
 import { ScreenBoundary } from './components/ScreenBoundary'
@@ -6,26 +6,53 @@ import { EMPTY_STATE } from './domain/types'
 import { tapLight } from './haptics'
 import { clearPhotos } from './photos'
 import { Analysis } from './screens/Analysis'
+import { Appointments } from './screens/Appointments'
+import { Badges } from './screens/Badges'
 import { Care } from './screens/Care'
+import { Guide } from './screens/Guide'
+import { Hub } from './screens/Hub'
 import { Meds } from './screens/Meds'
 import { Onboarding } from './screens/Onboarding'
+import { Photos } from './screens/Photos'
+import { Privacy } from './screens/Privacy'
 import { Process } from './screens/Process'
+import { Reminders } from './screens/Reminders'
+import { Rules } from './screens/Rules'
 import { SurgeryPage } from './screens/SurgeryPage'
+import { Symptoms } from './screens/Symptoms'
 import { Today } from './screens/Today'
 import { actions, useAppState, useSaveFailed } from './store'
 
 const TABS = [
-  { id: 'bugun', label: 'Bugün', icon: Sprout, screen: Today },
-  { id: 'surec', label: 'Süreç', icon: Route, screen: Process },
-  { id: 'ilaclar', label: 'İlaçlar', icon: Pill, screen: Meds },
-  { id: 'bakim', label: 'Bakım', icon: Droplets, screen: Care },
-  { id: 'analiz', label: 'Analiz', icon: ChartNoAxesCombined, screen: Analysis },
-] satisfies { id: string; label: string; icon: unknown; screen: ComponentType }[]
+  { id: 'bugun', label: 'Bugün', icon: Sprout },
+  { id: 'surec', label: 'Süreç', icon: Route },
+  { id: 'ilaclar', label: 'İlaçlar', icon: Pill },
+  { id: 'analiz', label: 'Analiz', icon: ChartNoAxesCombined },
+  { id: 'merkez', label: 'Merkez', icon: LayoutGrid },
+]
 
 const SCREENS: Record<string, ComponentType> = {
-  ...Object.fromEntries(TABS.map((tab) => [tab.id, tab.screen])),
+  bugun: Today,
+  surec: Process,
+  ilaclar: Meds,
+  analiz: Analysis,
+  merkez: Hub,
+  bakim: Care,
+  belirti: Symptoms,
+  randevu: Appointments,
+  kurallar: Rules,
+  foto: Photos,
+  rehber: Guide,
+  rozet: Badges,
+  hatirlatma: Reminders,
   operasyon: SurgeryPage,
+  gizlilik: Privacy,
 }
+
+/** Alt sayfalarda menüde ait olduğu sekme parlar. */
+const ACTIVE_TAB: Record<string, string> = Object.fromEntries(
+  Object.keys(SCREENS).map((id) => [id, TABS.some((tab) => tab.id === id) ? id : 'merkez']),
+)
 
 const currentTab = () => {
   const id = window.location.hash.slice(1)
@@ -45,12 +72,12 @@ const useHashTab = () => {
   return tab
 }
 
-function Aurora() {
+function Space() {
   return (
-    <div className="aurora" aria-hidden>
+    <div className="space" aria-hidden>
       <span />
       <span />
-      <span />
+      <i />
     </div>
   )
 }
@@ -59,7 +86,7 @@ function TabBar({ tab }: { tab: string }) {
   return (
     <nav className="tabbar" aria-label="Ana menü">
       {TABS.map(({ id, label, icon: Icon }) => {
-        const active = tab === id
+        const active = ACTIVE_TAB[tab] === id
         return (
           <a
             key={id}
@@ -70,19 +97,11 @@ function TabBar({ tab }: { tab: string }) {
             onClick={tapLight}
           >
             {active && (
-              <motion.span
-                layoutId="tab-pill"
-                className="tab-pill"
-                transition={{ type: 'spring', stiffness: 380, damping: 28 }}
-              />
+              <motion.span layoutId="tab-pill" className="tab-pill" transition={{ type: 'spring', stiffness: 380, damping: 28 }} />
             )}
-            <motion.span
-              className="tab-icon"
-              animate={{ scale: active ? 1.08 : 1, y: active ? 0 : 1 }}
-              transition={{ type: 'spring', stiffness: 500, damping: 18 }}
-            >
-              <Icon size={22} strokeWidth={active ? 2.5 : 2} aria-hidden />
-            </motion.span>
+            <span className="tab-icon">
+              <Icon size={21} strokeWidth={active ? 2.5 : 1.9} aria-hidden />
+            </span>
             <AnimatePresence initial={false}>
               {active && (
                 <motion.span
@@ -111,7 +130,7 @@ export function App() {
   if (state.surgery === null) {
     return (
       <>
-        <Aurora />
+        <Space />
         <Onboarding />
       </>
     )
@@ -121,7 +140,7 @@ export function App() {
 
   return (
     <>
-      <Aurora />
+      <Space />
       <main className="main">
         {saveFailed && (
           <p className="notice" role="alert">
@@ -131,10 +150,10 @@ export function App() {
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={tab}
-            initial={{ opacity: 0, y: 16 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
           >
             <ScreenBoundary>
               <Screen />
@@ -142,7 +161,7 @@ export function App() {
           </motion.div>
         </AnimatePresence>
         {state.demo && (
-          <div className="notice notice-demo">
+          <div className="notice">
             <span>Örnek verileri görüyorsun.</span>
             <button
               type="button"
