@@ -4,12 +4,13 @@
     .\scripts\ios-imza.ps1 hazirla   Özel anahtarı ve Apple'a yüklenecek imza.csr dosyasını üretir.
     .\scripts\ios-imza.ps1 tamamla   Apple'dan inen dosyalardan GitHub secret değerlerini üretir.
     .\scripts\ios-imza.ps1 kopyala   Secret değerlerini sırayla panoya kopyalar.
+    .\scripts\ios-imza.ps1 gonder    Secret'ları GitHub CLI ile ekler ve TestFlight derlemesini başlatır.
 
   Dosyalar proje dışındaki kok-imza klasöründe durur, depoya girmez.
 #>
 param(
   [Parameter(Mandatory = $true)]
-  [ValidateSet('hazirla', 'tamamla', 'kopyala')]
+  [ValidateSet('hazirla', 'tamamla', 'kopyala', 'gonder')]
   [string]$Adim,
 
   # Belgeler klasörü OneDrive'a eşitlenebildiği için özel anahtar orada tutulmuyor.
@@ -99,8 +100,44 @@ function Invoke-Kopyala {
   Write-Output 'Pano temizlendi. Son olarak ASC_ISSUER_ID secret''ını App Store Connect''teki Issuer ID ile ekle.'
 }
 
+function Invoke-Gonder {
+  $depo = 'muratkepkep/kok'
+  if (-not (Test-Path $secretKlasoru)) { throw 'Secret dosyaları yok. Önce tamamla adımını çalıştır.' }
+  # Yeni kurulumda açık terminalin PATH'i güncellenmemiş olabilir.
+  $env:Path = "$env:Path;$env:ProgramFiles\GitHub CLI"
+  if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI bulunamadı. Kurulumu tamamla.' }
+
+  # Windows PowerShell yönlendirilen hata çıktısını kritik hata sayar, cmd bunu önler.
+  & cmd /c 'gh auth status >nul 2>&1'
+  if ($LASTEXITCODE -ne 0) {
+    & gh auth login --hostname github.com --git-protocol https --web
+    if ($LASTEXITCODE -ne 0) { throw 'GitHub girişi tamamlanamadı.' }
+  }
+
+  foreach ($ad in 'IOS_P12_BASE64', 'IOS_P12_PASSWORD', 'IOS_PROFILE_BASE64', 'ASC_KEY_ID', 'ASC_KEY_P8') {
+    # Değer dosyadan doğrudan okunur; komut satırına ve ekrana yazılmaz.
+    & cmd /c "gh secret set $ad --repo $depo < `"$(Join-Path $secretKlasoru "$ad.txt")`""
+    if ($LASTEXITCODE -ne 0) { throw "$ad eklenemedi." }
+  }
+
+  $gizli = Read-Host 'App Store Connect Issuer ID değerini yapıştır, Enter''a bas (ekranda görünmez)' -AsSecureString
+  $issuer = [Net.NetworkCredential]::new('', $gizli).Password.Trim()
+  if (-not $issuer) { throw 'Issuer ID boş olamaz.' }
+  $gecici = Join-Path $secretKlasoru 'ASC_ISSUER_ID.txt'
+  [IO.File]::WriteAllText($gecici, $issuer)
+  & cmd /c "gh secret set ASC_ISSUER_ID --repo $depo < `"$gecici`""
+  if ($LASTEXITCODE -ne 0) { throw 'ASC_ISSUER_ID eklenemedi.' }
+
+  Write-Output 'GitHub''daki secret''lar:'
+  & gh secret list --repo $depo
+  & gh workflow run ios.yml --repo $depo --ref main
+  if ($LASTEXITCODE -ne 0) { throw 'Derleme başlatılamadı.' }
+  Write-Output 'TestFlight derlemesi başlatıldı.'
+}
+
 switch ($Adim) {
   'hazirla' { Invoke-Hazirla }
   'tamamla' { Invoke-Tamamla }
   'kopyala' { Invoke-Kopyala }
+  'gonder' { Invoke-Gonder }
 }

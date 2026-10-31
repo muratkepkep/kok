@@ -136,23 +136,16 @@ jobs:
             exit 1
           fi
 
-      - name: TestFlight'a yükle
+      - name: IPA oluştur
         if: github.event_name == 'workflow_dispatch'
-        env:
-          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
-          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
-          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
         run: |
-          KEY_PATH="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"
-          printf '%s' "$ASC_KEY_P8" > "$KEY_PATH"
-
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
             <key>method</key><string>app-store-connect</string>
-            <key>destination</key><string>upload</string>
+            <key>destination</key><string>export</string>
             <key>teamID</key><string>$KOK_TEAM_ID</string>
             <key>signingStyle</key><string>manual</string>
             <key>signingCertificate</key><string>Apple Distribution</string>
@@ -165,14 +158,34 @@ jobs:
           EOF
 
           set -o pipefail
-          LOG="$RUNNER_TEMP/yukleme.log"
+          LOG="$RUNNER_TEMP/ipa.log"
           if ! xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/Kok.xcarchive" \
             -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
-            -exportPath "$RUNNER_TEMP/export" \
-            -authenticationKeyPath "$KEY_PATH" \
-            -authenticationKeyID "$ASC_KEY_ID" \
-            -authenticationKeyIssuerID "$ASC_ISSUER_ID" 2>&1 | tee "$LOG"; then
+            -exportPath "$RUNNER_TEMP/export" 2>&1 | tee "$LOG"; then
             grep -E 'error:|Error Domain' "$LOG" | sort -u | head -8 | sed 's/^/::error::/'
+            exit 1
+          fi
+
+      # xcodebuild'in doğrudan yüklemesi API anahtarıyla çalışmıyor, Xcode'a giriş
+      # yapılmış hesap istiyor. altool anahtarı yalnızca bu klasörlerde arıyor.
+      - name: TestFlight'a yükle
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          printf '%s' "$ASC_KEY_P8" > "$HOME/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8"
+
+          set -o pipefail
+          LOG="$RUNNER_TEMP/yukleme.log"
+          if ! xcrun altool --upload-app \
+            --type ios \
+            --file "$(ls "$RUNNER_TEMP"/export/*.ipa)" \
+            --apiKey "$ASC_KEY_ID" \
+            --apiIssuer "$ASC_ISSUER_ID" 2>&1 | tee "$LOG"; then
+            grep -iE 'error|failed|invalid|unable' "$LOG" | sort -u | head -8 | sed 's/^/::error::/'
             exit 1
           fi
