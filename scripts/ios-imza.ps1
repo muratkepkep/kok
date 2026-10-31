@@ -4,13 +4,14 @@
     .\scripts\ios-imza.ps1 hazirla   Özel anahtarı ve Apple'a yüklenecek imza.csr dosyasını üretir.
     .\scripts\ios-imza.ps1 tamamla   Apple'dan inen dosyalardan GitHub secret değerlerini üretir.
     .\scripts\ios-imza.ps1 kopyala   Secret değerlerini sırayla panoya kopyalar.
-    .\scripts\ios-imza.ps1 gonder    Secret'ları GitHub CLI ile ekler ve TestFlight derlemesini başlatır.
+    .\scripts\ios-imza.ps1 gonder    Issuer ID panodayken secret'ları ekler ve TestFlight derlemesini başlatır.
+    .\scripts\ios-imza.ps1 issuer    Panodaki Issuer ID'yi doğrulayıp yalnızca o secret'ı günceller.
 
   Dosyalar proje dışındaki kok-imza klasöründe durur, depoya girmez.
 #>
 param(
   [Parameter(Mandatory = $true)]
-  [ValidateSet('hazirla', 'tamamla', 'kopyala', 'gonder')]
+  [ValidateSet('hazirla', 'tamamla', 'kopyala', 'gonder', 'issuer')]
   [string]$Adim,
 
   # Belgeler klasörü OneDrive'a eşitlenebildiği için özel anahtar orada tutulmuyor.
@@ -100,12 +101,35 @@ function Invoke-Kopyala {
   Write-Output 'Pano temizlendi. Son olarak ASC_ISSUER_ID secret''ını App Store Connect''teki Issuer ID ile ekle.'
 }
 
-function Invoke-Gonder {
-  $depo = 'muratkepkep/kok'
+function Use-GitHubCli {
   if (-not (Test-Path $secretKlasoru)) { throw 'Secret dosyaları yok. Önce tamamla adımını çalıştır.' }
   # Yeni kurulumda açık terminalin PATH'i güncellenmemiş olabilir.
   $env:Path = "$env:Path;$env:ProgramFiles\GitHub CLI"
   if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI bulunamadı. Kurulumu tamamla.' }
+}
+
+function Set-IssuerSecret([string]$Depo) {
+  # Gizli girişte Ctrl+V değeri yapıştırmaz, görünmez bir karakter ekler; değer panodan okunur.
+  $issuer = "$(Get-Clipboard -Raw)".Trim()
+  if ($issuer -notmatch '^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$') {
+    throw 'Panoda geçerli bir Issuer ID yok. App Store Connect''te Issuer ID yanındaki Copy düğmesine basıp komutu yeniden çalıştır.'
+  }
+  $dosya = Join-Path $secretKlasoru 'ASC_ISSUER_ID.txt'
+  [IO.File]::WriteAllText($dosya, $issuer)
+  & cmd /c "gh secret set ASC_ISSUER_ID --repo $Depo < `"$dosya`""
+  if ($LASTEXITCODE -ne 0) { throw 'ASC_ISSUER_ID eklenemedi.' }
+}
+
+function Invoke-Issuer {
+  Use-GitHubCli
+  Set-IssuerSecret 'muratkepkep/kok'
+  Set-Clipboard -Value ' '
+  Write-Output 'Issuer ID eklendi, pano temizlendi.'
+}
+
+function Invoke-Gonder {
+  $depo = 'muratkepkep/kok'
+  Use-GitHubCli
 
   # Windows PowerShell yönlendirilen hata çıktısını kritik hata sayar, cmd bunu önler.
   & cmd /c 'gh auth status >nul 2>&1'
@@ -120,13 +144,7 @@ function Invoke-Gonder {
     if ($LASTEXITCODE -ne 0) { throw "$ad eklenemedi." }
   }
 
-  $gizli = Read-Host 'App Store Connect Issuer ID değerini yapıştır, Enter''a bas (ekranda görünmez)' -AsSecureString
-  $issuer = [Net.NetworkCredential]::new('', $gizli).Password.Trim()
-  if (-not $issuer) { throw 'Issuer ID boş olamaz.' }
-  $gecici = Join-Path $secretKlasoru 'ASC_ISSUER_ID.txt'
-  [IO.File]::WriteAllText($gecici, $issuer)
-  & cmd /c "gh secret set ASC_ISSUER_ID --repo $depo < `"$gecici`""
-  if ($LASTEXITCODE -ne 0) { throw 'ASC_ISSUER_ID eklenemedi.' }
+  Set-IssuerSecret $depo
 
   Write-Output 'GitHub''daki secret''lar:'
   & gh secret list --repo $depo
@@ -140,4 +158,5 @@ switch ($Adim) {
   'tamamla' { Invoke-Tamamla }
   'kopyala' { Invoke-Kopyala }
   'gonder' { Invoke-Gonder }
+  'issuer' { Invoke-Issuer }
 }
